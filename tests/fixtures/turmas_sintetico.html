@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<title>Fixture SINTÉTICA — não é HTML capturado do portal UERJ</title>
+<body>
+<h1>Turmas da Disciplina — dados fictícios para testes</h1>
+<!-- Os blocos section, headings, captions e headers são um contrato de teste.
+     Não representam seletores comprovados no portal real. -->
+<section>
+  <h2>TURMA: 01</h2>
+  <table>
+    <caption>Vagas Atualizadas da Turma</caption>
+    <thead><tr><th>Tipo de Vaga</th><th>Oferecidas</th><th>Ocupadas</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">UERJ</th><td>25</td><td>25</td></tr>
+      <tr><th scope="row">Externa</th><td>2</td><td>0</td></tr>
+    </tbody>
+  </table>
+  <table>
+    <caption>Vagas para Solicitação de Inscrição</caption>
+    <thead>
+      <tr><th rowspan="2">Tipo de Vaga</th><th rowspan="2">Oferecidas</th>
+          <th colspan="2">Solicitadas</th></tr>
+      <tr><th>Total</th><th>Preferenciais</th></tr>
+    </thead>
+    <tbody>
+      <tr><th scope="row">UERJ</th><td>30</td><td>18</td><td>10</td></tr>
+      <tr><th scope="row">Externa</th><td>2</td><td>0</td><td>0</td></tr>
+    </tbody>
+  </table>
+</section>
+<section>
+  <h2>TURMA 02</h2>
+  <table>
+    <caption>Vagas Atualizadas da Turma</caption>
+    <thead><tr><th>Tipo de Vaga</th><th>Oferecidas</th><th>Ocupadas</th></tr></thead>
+    <tbody><tr><th scope="row">UERJ</th><td>25</td><td>&nbsp;</td></tr></tbody>
+  </table>
+  <table>
+    <caption>Vagas para Solicitação de Inscrição</caption>
+    <thead>
+      <tr><th rowspan="2">Tipo de Vaga</th><th rowspan="2">Oferecidas</th>
+          <th colspan="2">Solicitadas</th></tr>
+      <tr><th>Total</th><th>Preferenciais</th></tr>
+    </thead>
+    <tbody><tr><th scope="row">UERJ</th><td>25</td><td>3</td><td>—</td></tr></tbody>
+  </table>
+</section>
+</body>
+</html>
