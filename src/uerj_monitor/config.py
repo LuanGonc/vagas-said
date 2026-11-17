@@ -36,6 +36,12 @@ class SchedulerSettings:
 
 
 @dataclass(frozen=True)
+class TelegramSettings:
+    enabled: bool
+    env_file: Path
+
+
+@dataclass(frozen=True)
 class MonitorConfig:
     database: Path
     sources: dict[str, Path]
@@ -43,6 +49,9 @@ class MonitorConfig:
     phase: SourcePhase
     encoding: str
     scheduler: SchedulerSettings
+    telegram: TelegramSettings
+    discipline_names: dict[str, str]
+    admin_user_ids: tuple[int, ...]
 
 
 def _string(value: object) -> str:
@@ -63,12 +72,12 @@ def _tables(value: object) -> list[dict]:
     return value
 
 
-def load_config(path: Path) -> MonitorConfig:
+def load_config(path: Path, *, require_watches: bool = True) -> MonitorConfig:
     try:
         raw = tomllib.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, UnicodeError, tomllib.TOMLDecodeError) as error:
         raise ConfigError("Não foi possível ler a configuração TOML.") from error
-    _keys(raw, {"monitor", "disciplines", "watches"})
+    _keys(raw, {"monitor", "disciplines", "watches", "telegram", "bot"})
     options = _keys(
         raw.get("monitor", {}),
         {
@@ -103,13 +112,29 @@ def load_config(path: Path) -> MonitorConfig:
         }
     )
     root = path.resolve().parent
+    bot = _keys(raw.get("bot", {}), {"admin_user_ids"})
+    admins = bot.get("admin_user_ids", [])
+    if not isinstance(admins, list) or any(
+        type(user_id) is not int or not 0 < user_id < 2**63 for user_id in admins
+    ):
+        raise ConfigError("bot.admin_user_ids deve ser uma lista de IDs numéricos positivos.")
+    telegram = _keys(raw.get("telegram", {}), {"enabled", "env_file"})
+    enabled = telegram.get("enabled", False)
+    if type(enabled) is not bool:
+        raise ConfigError("telegram.enabled deve ser true ou false.")
+    telegram_settings = TelegramSettings(
+        enabled=enabled,
+        env_file=(root / _string(telegram.get("env_file", ".env"))).resolve(),
+    )
     sources: dict[str, Path] = {}
+    discipline_names: dict[str, str] = {}
     for entry in _tables(raw.get("disciplines", [])):
-        _keys(entry, {"code", "html"})
+        _keys(entry, {"code", "html", "name"})
         code = _string(entry.get("code"))
         if code in sources:
             raise ConfigError("Disciplina repetida na lista de fontes locais.")
         sources[code] = (root / _string(entry.get("html"))).resolve()
+        discipline_names[code] = _string(entry.get("name", code))
     watches = []
     seen = set()
     for entry in _tables(raw.get("watches", [])):
@@ -134,8 +159,10 @@ def load_config(path: Path) -> MonitorConfig:
             if watch.discipline_code not in sources:
                 raise ConfigError("Uma turma ativa não possui uma fonte HTML configurada.")
             watches.append(watch)
-    if not watches:
+    if require_watches and not watches:
         raise ConfigError("Configure pelo menos uma turma ativa.")
+    if not sources:
+        raise ConfigError("Configure pelo menos uma disciplina no catálogo local.")
     return MonitorConfig(
         database=(root / _string(options.get("database", "data/monitor.sqlite3"))).resolve(),
         sources=sources,
@@ -143,4 +170,7 @@ def load_config(path: Path) -> MonitorConfig:
         phase=phase,
         encoding=encoding,
         scheduler=scheduler,
+        telegram=telegram_settings,
+        discipline_names=discipline_names,
+        admin_user_ids=tuple(dict.fromkeys(admins)),
     )

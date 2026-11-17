@@ -74,10 +74,12 @@ class Monitor:
         *,
         phase: SourcePhase = SourcePhase.UNKNOWN,
         rule: AvailabilityRule | None = None,
+        delivery_destination: str | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self.client, self.store = client, store
         self.phase, self.rule, self.clock = phase, rule, clock
+        self.delivery_destination = delivery_destination
         self.groups: dict[str, list[Watch]] = defaultdict(list)
         seen = set()
         for watch in watches:
@@ -118,6 +120,7 @@ class Monitor:
                     current,
                     available=self.rule.evaluate(current) if self.rule else None,
                     policy_id=self.rule.policy_id if self.rule else None,
+                    delivery_destination=self.delivery_destination,
                 )
                 observed += 1
                 if result.event is not None:

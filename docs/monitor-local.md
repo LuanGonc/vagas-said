@@ -16,7 +16,10 @@
   Mudança de fase ou de regra reinicia a baseline de disponibilidade.
 - Scheduler com intervalo mínimo de 60 segundos, jitter positivo, backoff limitado,
   encerramento após falhas consecutivas e interrupção por `Ctrl+C`.
-- Comandos `monitor --once`, `monitor` e `events`, sem rede nem Telegram.
+- Comandos `monitor --once`, `monitor` e `events`, com fonte de disciplinas local.
+- Telegram opcional: entrega de teste, descoberta de chat, formatação de eventos,
+  fila persistente, tentativas limitadas e recuperação manual de envios incertos.
+  A configuração padrão não faz requisições de rede.
 
 ## Verificações de aceite
 
@@ -40,6 +43,8 @@ operação integrada ao Aluno Online.
 
 Ainda faltam o adaptador autenticado, timeout e tratamento de erros HTTP, identificação
 da sessão expirada e a interpretação comprovada de disponibilidade no calendário vigente.
-Notificações, fila de entrega e novas tentativas de Telegram pertencem à Fase 3.
+A implementação de Telegram está descrita em [telegram.md](telegram.md), incluindo a
+fila e as novas tentativas. O recebimento real ainda deve ser validado pelo usuário,
+com as credenciais locais do bot. A Fase 3 não tem aceite real concluído.
 O histórico de eventos ainda não tem limpeza automática; a retenção deverá ser definida
 antes de uma execução contínua longa.

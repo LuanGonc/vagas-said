@@ -1,4 +1,4 @@
-"""Estado e eventos locais atômicos. Nenhuma mensagem é enviada nesta etapa."""
+"""Estado, eventos e fila de notificações persistidos atomicamente."""
 
 import json
 import sqlite3
@@ -48,6 +48,13 @@ def _decode(payload: str) -> ClassObservation:
     return observation_from_dict(json.loads(payload))
 
 
+def _state_key(watch: Watch, subscription_id: int | None) -> str:
+    parts = list(watch_key(watch))
+    return json.dumps(
+        parts if subscription_id is None else ["subscription", subscription_id, *parts]
+    )
+
+
 class SQLiteStore:
     def __init__(self, path: Path | str) -> None:
         if str(path) != ":memory:":
@@ -55,8 +62,9 @@ class SQLiteStore:
         self.connection = sqlite3.connect(str(path), timeout=5)
         self.connection.row_factory = sqlite3.Row
         try:
+            self.connection.execute("PRAGMA foreign_keys = ON")
             version = self.connection.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1):
+            if version not in (0, 1, 2, 3):
                 raise ValueError("Versão de banco não suportada.")
             self.connection.executescript("""
                 CREATE TABLE IF NOT EXISTS states (
@@ -72,7 +80,56 @@ class SQLiteStore:
                     current TEXT NOT NULL,
                     policy_id TEXT
                 );
-                PRAGMA user_version = 1;
+                CREATE TABLE IF NOT EXISTS deliveries (
+                    event_id INTEGER PRIMARY KEY REFERENCES events(id),
+                    destination TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    available_at REAL NOT NULL DEFAULT 0,
+                    last_error TEXT,
+                    message_id INTEGER,
+                    sent_at REAL
+                );
+                CREATE INDEX IF NOT EXISTS deliveries_due
+                    ON deliveries(destination, status, available_at);
+                CREATE TABLE IF NOT EXISTS delivery_limits (
+                    destination TEXT PRIMARY KEY,
+                    not_before REAL NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS bot_users (
+                    user_id INTEGER PRIMARY KEY
+                );
+                CREATE TABLE IF NOT EXISTS subscriptions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL REFERENCES bot_users(user_id),
+                    discipline_code TEXT NOT NULL,
+                    discipline_name TEXT,
+                    class_number TEXT NOT NULL,
+                    vacancy_type TEXT NOT NULL,
+                    active INTEGER NOT NULL DEFAULT 1
+                );
+                CREATE TABLE IF NOT EXISTS bot_access (
+                    user_id INTEGER PRIMARY KEY REFERENCES bot_users(user_id),
+                    granted_by INTEGER NOT NULL
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS subscriptions_active
+                    ON subscriptions(user_id, discipline_code, class_number)
+                    WHERE active = 1;
+                CREATE TABLE IF NOT EXISTS subscription_events (
+                    event_id INTEGER PRIMARY KEY REFERENCES events(id),
+                    subscription_id INTEGER NOT NULL REFERENCES subscriptions(id)
+                );
+                CREATE TABLE IF NOT EXISTS bot_actions (
+                    token TEXT PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES bot_users(user_id),
+                    payload TEXT NOT NULL,
+                    expires_at REAL NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS bot_offsets (
+                    bot_id TEXT PRIMARY KEY,
+                    next_offset INTEGER NOT NULL
+                );
+                PRAGMA user_version = 3;
             """)
         except Exception:
             self.connection.close()
@@ -84,10 +141,12 @@ class SQLiteStore:
     def __exit__(self, *_: object) -> None:
         self.connection.close()
 
-    def load_latest(self, watch: Watch) -> ClassObservation | None:
+    def load_latest(
+        self, watch: Watch, *, subscription_id: int | None = None
+    ) -> ClassObservation | None:
         row = self.connection.execute(
             "SELECT observation FROM states WHERE watch_key = ?",
-            (json.dumps(watch_key(watch)),),
+            (_state_key(watch, subscription_id),),
         ).fetchone()
         return _decode(row[0]) if row else None
 
@@ -97,6 +156,8 @@ class SQLiteStore:
         *,
         available: bool | None = None,
         policy_id: str | None = None,
+        delivery_destination: str | None = None,
+        subscription_id: int | None = None,
     ) -> RecordResult:
         """Atualiza baseline e evento na mesma transação.
 
@@ -110,9 +171,19 @@ class SQLiteStore:
             raise ValueError("Disponibilidade exige uma regra identificada.")
         if policy_id is not None and not policy_id.strip():
             raise ValueError("A regra precisa de um identificador não vazio.")
-        key = json.dumps(watch_key(current.watch))
+        key = _state_key(current.watch, subscription_id)
         with self.connection:
             self.connection.execute("BEGIN IMMEDIATE")
+            if (
+                subscription_id is not None
+                and not self.connection.execute(
+                    """SELECT 1 FROM subscriptions s JOIN bot_access a ON a.user_id = s.user_id
+                   WHERE s.id = ? AND s.active = 1 AND s.discipline_code = ?
+                   AND s.class_number = ? AND s.vacancy_type = ?""",
+                    (subscription_id, *watch_key(current.watch)),
+                ).fetchone()
+            ):
+                return RecordResult(Change.INCOMPARABLE)
             row = self.connection.execute(
                 "SELECT * FROM states WHERE watch_key = ?", (key,)
             ).fetchone()
@@ -140,6 +211,16 @@ class SQLiteStore:
                     (kind.value, _encode(previous), _encode(current), policy_id),
                 )
                 event = StoredEvent(cursor.lastrowid, kind, previous, current, policy_id)
+                if subscription_id is not None:
+                    self.connection.execute(
+                        "INSERT INTO subscription_events (event_id, subscription_id) VALUES (?, ?)",
+                        (event.id, subscription_id),
+                    )
+                if delivery_destination is not None:
+                    self.connection.execute(
+                        "INSERT INTO deliveries (event_id, destination) VALUES (?, ?)",
+                        (event.id, delivery_destination),
+                    )
             self.connection.execute(
                 """INSERT INTO states (watch_key, observation, available, policy_id)
                    VALUES (?, ?, ?, ?)

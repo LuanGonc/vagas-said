@@ -1,0 +1,24 @@
+# DEMONSTRAÇÃO LOCAL. O código/nome seguem o exemplo do produto.
+# As turmas e contagens são fictícias; não foram consultadas no Aluno Online.
+[monitor]
+database = "data/bot.sqlite3"
+phase = "unknown"
+interval_seconds = 60
+jitter_fraction = 0.1
+max_backoff_seconds = 900
+max_failures = 5
+
+[telegram]
+# O comando bot é uma ativação explícita e lê somente BOT_TOKEN.
+enabled = false
+env_file = ".env"
+
+[bot]
+# Inicie o bot, envie /id e coloque seu ID na sua cópia local deste arquivo.
+# Com a lista vazia, ninguém pode cadastrar turmas ou autorizar pessoas.
+admin_user_ids = []
+
+[[disciplines]]
+code = "IME01-06766"
+name = "Cálculo II (demonstração)"
+html = "tests/fixtures/turmas_sintetico.html"

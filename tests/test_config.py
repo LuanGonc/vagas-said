@@ -66,3 +66,25 @@ def test_empty_malformed_or_wrong_structure_is_rejected(tmp_path, content):
 def test_monitor_settings_validate_direct_construction():
     with pytest.raises(ConfigError):
         SchedulerSettings(interval_seconds=float("inf"))
+
+
+def test_telegram_configuration_has_no_credentials_and_resolves_env_path(tmp_path):
+    content = EXAMPLE.read_text(encoding="utf-8").replace(
+        'env_file = ".env"', 'env_file = "private/.env"'
+    )
+    config = load_config(write_config(tmp_path, content))
+    assert config.telegram.enabled is False
+    assert config.telegram.env_file == tmp_path / "private" / ".env"
+
+
+def test_telegram_enabled_must_be_boolean(tmp_path):
+    content = EXAMPLE.read_text(encoding="utf-8").replace("enabled = false", 'enabled = "sim"', 1)
+    with pytest.raises(ConfigError):
+        load_config(write_config(tmp_path, content))
+
+
+@pytest.mark.parametrize("admins", ["[true]", "[0]", '["1"]', '"1"'])
+def test_bot_admins_require_positive_integer_ids(tmp_path, admins):
+    content = EXAMPLE.read_text(encoding="utf-8") + f"\n[bot]\nadmin_user_ids = {admins}\n"
+    with pytest.raises(ConfigError):
+        load_config(write_config(tmp_path, content))

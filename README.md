@@ -1,10 +1,28 @@
 # Monitor de Vagas UERJ
 
+O produto será um **bot Telegram para pessoas autorizadas**, com busca de disciplinas,
+seleção das turmas existentes e limite de **10 turmas ativas por pessoa**. As decisões
+confirmadas estão em [docs/produto.md](docs/produto.md).
+
+O fluxo multiusuário já pode ser exercitado com dados locais:
+
+```powershell
+.\.venv\Scripts\python.exe -m uerj_monitor bot-demo --config config.bot.example.toml
+```
+
+Para configurar o bot real, autorizar convidados e escolher turmas, siga
+[docs/bot.md](docs/bot.md). O modo `bot` usa apenas `BOT_TOKEN`; cada conversa tem sua
+própria lista e destino. A fonte de turmas continua **sintética**, e o modelo de sessão
+UERJ será decidido após a inspeção do portal. Os comandos de arquivo/CHAT_ID abaixo
+continuam disponíveis como ferramentas locais de desenvolvimento e diagnóstico.
+
 Implementação inicial do [plano](PLANO_MONITOR_VAGAS_UERJ.md): base Python, modelos,
-parser de **HTML sintético**, monitor de arquivos locais, persistência SQLite e CLI.
+parser de **HTML sintético**, monitor de arquivos locais, persistência SQLite, CLI
+e integração opcional ao Telegram com fila persistente.
 A Fase 2 pode ser exercitada com simulações enquanto a descoberta do protocolo segue
 pendente. O parser ainda precisa ser adaptado ao HTML real sanitizado. O programa
-ainda não consulta o Aluno Online nem envia Telegram.
+ainda não consulta o Aluno Online. O Telegram permanece desativado por padrão e precisa
+de um bot e chat configurados localmente para o teste de entrega real.
 
 ## Preparar e executar (PowerShell / Python 3.12+)
 
@@ -73,7 +91,37 @@ de consulta e a execução contínua retorna 2 ao atingir o limite de falhas.
 Estado e evento são gravados em uma única transação por turma. Capturas antigas não
 substituem o estado atual. O banco armazena somente a última observação por turma e
 o histórico de eventos com os valores anteriores e atuais, sem HTML ou dados de sessão.
-Não há fila ou confirmação de entrega de notificações nesta etapa.
+A fila opcional de notificações é criada junto com o evento, na mesma transação.
+
+## Configurar o Telegram
+
+O [guia de Telegram](docs/telegram.md) explica como criar o bot no BotFather, preencher
+o `.env` local, descobrir o chat e testar uma entrega. Não coloque token no TOML nem
+no terminal como argumento; o programa lê `BOT_TOKEN` e `CHAT_ID` do `.env` ou do ambiente.
+
+Após preencher o token no `.env` e enviar `/start` ao seu bot:
+
+```powershell
+.\.venv\Scripts\python.exe -m uerj_monitor telegram chats
+# Preencha CHAT_ID no .env com o ID do seu chat e então execute:
+.\.venv\Scripts\python.exe -m uerj_monitor telegram test
+```
+
+Para integrar ao monitor, altere `[telegram] enabled = true` na sua cópia local do TOML.
+Só eventos novos, criados com a integração ativa, entram na fila. A baseline e eventos
+históricos não são enviados. Como a fonte ainda é local, as notificações trazem o título
+“Demonstração local” e informam mudanças nas contagens sem afirmar vaga utilizável.
+Os horários dos alertas são exibidos em Brasília; os dados persistidos mantêm fuso UTC.
+
+```powershell
+.\.venv\Scripts\python.exe -m uerj_monitor telegram queue --config config.local.toml
+.\.venv\Scripts\python.exe -m uerj_monitor telegram flush --config config.local.toml
+```
+
+Há até três tentativas automáticas para falhas recuperáveis. Entregas já confirmadas
+não são repetidas após reinícios. Se a resposta de um possível envio se perder, a entrega
+fica marcada como incerta e exige revisão; não há promessa de entrega exatamente uma vez.
+Detalhes dos estados e da recuperação manual estão no guia.
 
 ## Verificar a implementação
 
@@ -127,10 +175,11 @@ no portal, apesar de já existir extração programática da amostra sintética.
 Depois disso: adaptar o parser e implementar `PortalClient`, validar uma consulta única
 e a regra de disponibilidade e integrar o monitor ao portal. O tratamento de HTTP 429/5xx,
 timeout de rede e expiração de sessão depende desse adaptador e ainda está pendente.
-Telegram segue na Fase 3. Dependências de HTTP e navegador serão adicionadas quando
-o protocolo indicar qual adaptador usar.
+O aceite real da Fase 3 depende de receber a mensagem de teste no Telegram. A integração
+e a fila já podem ser exercitadas com respostas simuladas. O adaptador HTTP do portal
+ou de navegador será escolhido quando o protocolo for conhecido.
 
-`.env.example` reserva nomes para a futura integração Telegram e não é carregado agora.
+`.env.example` documenta os nomes das credenciais; preencha somente a cópia local `.env`.
 Arquivos de sessão, HTML bruto e HAR devem ficar somente em `captures/` local, ignorado
 pelo `.gitignore`. A fixture versionável deve ser revisada manualmente e conter apenas
 dados fictícios. Não compartilhe senha, cookies, tokens ou um HAR completo no chat.
