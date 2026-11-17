@@ -30,9 +30,9 @@ Implementação atual:
 
 Pendências relevantes:
 
-1. Validar a lista de disciplinas e a origem dos identificadores internos. O detalhe
-   de turmas e os nomes dos campos POST já foram verificados em uma captura real;
-   uma repetição HTTP única teve sucesso e há parser/fixture real sanitizada.
+1. Ligar o catálogo observado ao contexto autenticado de cada usuário. A lista de
+   disciplinas, origem dos identificadores e detalhe das turmas já foram verificados;
+   o fluxo lista → turmas foi repetido com sucesso e há parsers/fixtures sanitizadas.
 2. Definir o modelo de sessão após essa descoberta. O catálogo/monitor recebem contexto
    do usuário para permitir sessões separadas; nenhuma conta central foi presumida.
 3. Validar regras de disponibilidade por fase, calendário e elegibilidade.

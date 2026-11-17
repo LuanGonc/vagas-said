@@ -6,7 +6,12 @@ Este documento separa observações verificadas de hipóteses. Em 17/11/2026, um
 fornecido pelo usuário permitiu examinar a resposta real e repetir **uma única consulta
 autenticada de turmas**. A requisição repetida recebeu HTTP 200 e o parser reconheceu
 quatro turmas e oito observações (UERJ e Vestibular), sem executar consultas em loop.
-Isso valida a consulta com aquela sessão; não valida login, renovação ou uso contínuo.
+Depois, dois novos HARs cobriram a abertura da lista e a seleção de outra disciplina.
+O programa repetiu o fluxo **lista → turmas** em duas consultas: recebeu HTTP 200 na
+lista, mapeou 76 disciplinas (53 com turma indicada) e abriu Álgebra (`IME02-10815`),
+reconhecendo as turmas 1 e 2. Os campos do segundo POST vieram da resposta atualizada
+da lista. Esses testes validam consultas com as sessões fornecidas; não validam login,
+renovação de sessão expirada ou operação contínua.
 
 | Item | Evidência atual | Situação |
 |---|---|---|
@@ -14,7 +19,8 @@ Isso valida a consulta com aquela sessão; não valida login, renovação ou uso
 | Navegação de turmas | POST de documento HTML para `/requisicaoaluno/`, HTTP 200 | Verificada no HAR e repetida uma vez pelo programa |
 | Nome das tabelas | Vagas Atualizadas da Turma; Vagas para Solicitação de Inscrição | Registrado no plano |
 | Campos enviados | `_token`, `requisicao`, `matricula`, `disciplinas[0]` | Nomes verificados; valores privados não reproduzidos |
-| Identificador da disciplina | `disciplinas[0]` contém identificador numérico interno | Verificada uma associação; falta a lista que fornece os identificadores |
+| Identificador da disciplina | Argumento numérico de `consultarDisciplina(output, id)` no link da lista | Correspondência verificada com `disciplinas[0]` e em nova navegação real |
+| Lista de disciplinas | 76 códigos e nomes no currículo da conta da captura; 53 com oferta indicada | Parser e fixture sanitizada; não representa o catálogo completo da UERJ |
 | Sessão | Cookie `PHPSESSID`, matrícula e campos opacos no POST | Uso verificado; login, renovação e expiração pendentes |
 | HTML real | Quatro turmas, duas tabelas por turma, categorias UERJ e Vestibular | Parser testado com resposta real e fixture sanitizada |
 | Semântica SID/SAID e calendário | Disponibilidade utilizável não comprovada | Pendente |
@@ -52,9 +58,11 @@ sanitizada de uma resposta e os nomes/papéis dos campos observados.
 | `matricula` | Identificador pessoal enviado pelo navegador | Por usuário | Foi enviado; não testamos sua remoção |
 | `disciplinas[0]` | Identificador interno numérico da disciplina consultada | Por disciplina; origem na lista ainda pendente | Foi enviado; não testamos sua remoção |
 
-O HAR contém um POST de turmas e quatro recursos auxiliares, incluindo um recurso 404.
-Esse 404 não impediu a resposta HTML de turmas nem a extração programática.
-Não há captura da página anterior, login, lista de disciplinas ou sessão expirada.
+O primeiro HAR contém um POST de turmas e quatro recursos auxiliares, incluindo um
+recurso 404. Esse 404 não impediu a resposta HTML nem a extração programática.
+Os dois arquivos posteriores acrescentam a abertura da lista e o clique em Álgebra.
+Não há captura de login ou sessão expirada. Os arquivos posteriores foram salvos sem
+extensão; o `.gitignore` também cobre o prefixo de arquivo do navegador, além de `*.har`.
 Os campos opacos não são tratados como constantes nem têm valores registrados aqui.
 Uma repetição bem-sucedida não comprova que possam ser reaproveitados indefinidamente.
 
@@ -82,10 +90,35 @@ alterar a disciplina selecionada. O resultado reconhecido foi a disciplina do ex
 `IME01-06766` com turmas 1, 2, 3 e 4. As contagens não demonstram por si só elegibilidade
 de matrícula nem o calendário vigente; a fase continua desconhecida no modelo.
 
-Para transformar o teste em cliente de operação ainda precisamos de uma captura da
-**lista de disciplinas e da navegação dela até as turmas**, incluindo a resposta HTML
-da lista. Isso mostrará como obter os identificadores internos e campos atualizados
-sem depender de valores antigos de uma exportação. Não é necessário capturar senhas.
+## Lista e construção da consulta verificadas
+
+O POST que abre a lista envia `flg_logado`, `_token`, `target`, `hRef` e `requisicao`.
+Seus valores continuam privados e seu ciclo de renovação ainda não foi validado.
+A resposta contém um formulário POST com `_token`, `requisicao` e `matricula`, cujo
+destino é `/requisicaoaluno/`. Esses três valores coincidem com os enviados pelo
+navegador no clique seguinte. O identificador numérico do link escolhido coincide
+com o valor enviado em `disciplinas[0]`. A coincidência também foi validada em uma
+nova navegação real: obter lista e consultar Álgebra com os campos dela.
+
+A tabela da lista possui os cabeçalhos `Disciplina`, `Período`, `Atendida?`, `Tipo`,
+`Ramif.`, `Cred.`, `CH Total`, `Trava Crédito` e `Turma no Período?`. O código e o nome
+estão juntos em um `span` da primeira célula. Os links observados usam
+`javascript:consultarDisciplina(output, <identificador>); return false;`.
+
+`parse_discipline_list` extrai somente código, nome, identificador e indicador de
+oferta (`Sim`/`Não`). Não extrai as colunas de histórico/situação acadêmica. A fixture
+`tests/fixtures/disciplinas_real_sanitizado.html` usa nomes, IDs, códigos e campos de
+formulário fictícios e remove os valores acadêmicos das linhas originais.
+
+`ObservedPortalClient` recebe um cliente HTTP com sessão autorizada e o HTML da lista.
+Ele resolve o código para o identificador observado, obtém os campos do formulário,
+efetua uma consulta de turmas e valida a disciplina retornada. Não segue redirecionamentos
+nem transforma login/erro em lista vazia. O chamador deve manter a sessão isolada por
+contexto de usuário. Este adaptador não implementa login nem decide o modelo de conta.
+
+Os 76 itens são do currículo da conta logada, não um índice público global. A decisão
+entre sessão individual e conta central permanece aberta e precisa considerar que
+outras pessoas podem ter currículos diferentes.
 
 Registrar também: tela de origem, ação manual, destino comprovado, estrutura de resposta,
 codificação, sinal de sessão expirada e data da validação. Usar somente valores fictícios.
@@ -122,10 +155,11 @@ suporta o seguinte contrato exclusivamente para iniciar e testar a implementaç�
   Por padrão, usa fase desconhecida e o horário local de leitura em UTC; esse horário
   não informa quando o servidor atualizou os dados.
 
-O contrato `PortalClient` ainda não possui adaptador de operação com autenticação e
-renovação de sessão. A repetição HTTP única validou o protocolo observado, mas ficou
-como diagnóstico local, com os dados sensíveis fora do repositório. A identificação
-de login expirado ainda deverá ser validada; um erro de parser não a substitui.
+O contrato `PortalClient` possui agora um adaptador HTTP baseado na lista observada,
+mas ainda depende de sessão autorizada fornecida pelo chamador. Login e renovação
+de sessão ainda não estão implementados. Os testes reais usam dados locais fora do
+repositório. A identificação específica de login expirado ainda precisa ser validada;
+a rejeição genérica de resposta incompatível não substitui essa descoberta.
 
 ## Aceite da Fase 0
 
@@ -134,7 +168,9 @@ de login expirado ainda deverá ser validada; um erro de parser não a substitui
 - [x] Requisição que abre turmas verificada e repetida uma vez com sessão do usuário.
 - [x] Campos do POST documentados sem valores privados.
 - [x] Parser adaptado e testado contra HTML real sanitizado.
-- [ ] Origem dos identificadores e renovação/expiração de sessão documentadas.
+- [x] Origem dos identificadores e campos do formulário da lista verificada.
+- [x] Fluxo lista → turmas repetido com campos obtidos da resposta atualizada.
+- [ ] Autenticação e renovação/expiração de sessão documentadas.
 - [ ] Regras de inscrição e limites de consulta esclarecidos.
 
 O aceite mínimo de identificar a consulta e extrair linhas reais foi atingido. A

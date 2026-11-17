@@ -9,13 +9,9 @@ from typing import Protocol
 
 from uerj_monitor.models import ClassObservation, SourcePhase, Watch
 from uerj_monitor.parser import ParseError, parse_classes
-from uerj_monitor.portal_client import PortalClient
+from uerj_monitor.portal_client import PortalClient, SourceError
 from uerj_monitor.serialization import watch_key
 from uerj_monitor.storage import SQLiteStore, StoredEvent
-
-
-class SourceError(RuntimeError):
-    """Consulta falhou. Não contém a resposta nem dados de sessão."""
 
 
 class LocalHtmlClient:
