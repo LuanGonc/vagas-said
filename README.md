@@ -13,15 +13,18 @@ O fluxo multiusuário já pode ser exercitado com dados locais:
 Para configurar o bot real, autorizar convidados e escolher turmas, siga
 [docs/bot.md](docs/bot.md). O modo `bot` usa apenas `BOT_TOKEN`; cada conversa tem sua
 própria lista e destino. A fonte de turmas continua **sintética**, e o modelo de sessão
-UERJ será decidido após a inspeção do portal. Os comandos de arquivo/CHAT_ID abaixo
+UERJ será decidido após a inspeção do portal. Uma consulta real já foi repetida com
+sucesso a partir de um HAR local, e o parser reconhece o HTML observado; o bot ainda
+não possui o cliente de operação com autenticação/renovação. Os comandos de arquivo/CHAT_ID abaixo
 continuam disponíveis como ferramentas locais de desenvolvimento e diagnóstico.
 
 Implementação inicial do [plano](PLANO_MONITOR_VAGAS_UERJ.md): base Python, modelos,
 parser de **HTML sintético**, monitor de arquivos locais, persistência SQLite, CLI
 e integração opcional ao Telegram com fila persistente.
 A Fase 2 pode ser exercitada com simulações enquanto a descoberta do protocolo segue
-pendente. O parser ainda precisa ser adaptado ao HTML real sanitizado. O programa
-ainda não consulta o Aluno Online. O Telegram permanece desativado por padrão e precisa
+pendente. O parser aceita a fixture sintética e a estrutura real verificada, com
+teste único de consulta HTTP documentado em [protocolo.md](docs/protocolo.md).
+A operação contínua do bot ainda usa arquivos locais. O Telegram permanece desativado por padrão e precisa
 de um bot e chat configurados localmente para o teste de entrega real.
 
 ## Preparar e executar (PowerShell / Python 3.12+)

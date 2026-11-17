@@ -1,8 +1,6 @@
-"""Parser do contrato HTML SINTÉTICO descrito em docs/protocolo.md.
+"""Parser do contrato sintético e do HTML observado na captura real de 17/11/2026."""
 
-Não foi validado no portal real. Estrutura desconhecida causa ParseError.
-"""
-
+import copy
 import re
 import unicodedata
 from datetime import UTC, datetime
@@ -133,6 +131,14 @@ def parse_classes(
         raise ValueError("Informe o código da disciplina.")
     timestamp = captured_at if captured_at is not None else datetime.now(UTC)
     soup = BeautifulSoup(html, "html.parser")
+    if _portal_heading(soup):
+        normalized = _normalize_portal(soup, discipline_code)
+        return parse_classes(
+            str(normalized),
+            discipline_code=discipline_code,
+            captured_at=timestamp,
+            source_phase=source_phase,
+        )
     observations = []
     seen_classes: set[str] = set()
     for section in soup.find_all("section"):
@@ -183,3 +189,95 @@ def parse_classes(
     if not observations:
         raise ParseError("Nenhuma turma reconhecida pelo contrato HTML sintético.")
     return observations
+
+
+def _portal_heading(soup: BeautifulSoup) -> bool:
+    return any(
+        _normalized(str(node)) == "turmas da disciplina"
+        for node in soup.find_all(string=True)
+        if node.parent.name not in {"script", "style"}
+    )
+
+
+def _normalize_portal(soup: BeautifulSoup, discipline_code: str) -> BeautifulSoup:
+    """Adapta apenas a estrutura comprovada no HAR para o contrato interno.
+
+    A captura usa td nos cabeçalhos, sem thead/tbody, e captions mal fechados.
+    As linhas são associadas pela tabela ancestral mais próxima, não por índices globais.
+    Nenhum cabeçalho pessoal, formulário ou script é copiado ao contrato interno.
+    """
+    discipline_labels = [
+        tag
+        for tag in soup.find_all("b")
+        if _normalized(_text(tag)).rstrip(":").strip() == "disciplina"
+    ]
+    if len(discipline_labels) != 1:
+        raise ParseError("Identificação da disciplina ausente ou ambígua na resposta.")
+    codes = re.findall(r"\b[A-Z]{3}[0-9]{2}-[0-9]{5}\b", _text(discipline_labels[0].parent))
+    if codes != [discipline_code.strip().upper()]:
+        raise ParseError("A resposta não corresponde à disciplina solicitada.")
+    target = BeautifulSoup("<html><body></body></html>", "html.parser")
+    seen = set()
+    labels = [
+        tag for tag in soup.find_all("b") if _normalized(_text(tag)).rstrip(":").strip() == "turma"
+    ]
+    containers = []
+    for label in labels:
+        row = label.find_parent("tr")
+        container = row.find_parent("table") if row else None
+        if container is not None and all(container is not item for item in containers):
+            containers.append(container)
+    for container in containers:
+        class_rows = [
+            row for row in container.find_all("tr") if row.find_parent("table") is container
+        ]
+        for row in class_rows:
+            if sum(label.find_parent("tr") is row for label in labels) != 1:
+                raise ParseError("Linha de turma sem identificação única na resposta.")
+    for label in labels:
+        match = re.fullmatch(r"turma\s*:\s*([a-z0-9]+)", _normalized(_text(label.parent)))
+        row = label.find_parent("tr")
+        if match is None or row is None:
+            raise ParseError("Identificação da turma incompatível com a captura validada.")
+        class_number = match.group(1).upper()
+        if class_number in seen:
+            raise ParseError("Número de turma repetido; associação ambígua.")
+        seen.add(class_number)
+        section = target.new_tag("section")
+        heading = target.new_tag("h2")
+        heading.string = f"TURMA {class_number}"
+        section.append(heading)
+        tables = row.find_all("table")
+        if not tables:
+            raise ParseError("Turma sem tabelas de vagas reconhecíveis.")
+        for table in tables:
+            caption = table.find("caption", recursive=False)
+            title = next(caption.stripped_strings, "") if caption else ""
+            label_text = _normalized(title)
+            if label_text not in {CURRENT_CAPTION, REQUEST_CAPTION}:
+                raise ParseError("Tabela de vagas sem título reconhecível na turma.")
+            rows = [item for item in table.find_all("tr") if item.find_parent("table") is table]
+            header_count = 1 if label_text == CURRENT_CAPTION else 2
+            if len(rows) <= header_count:
+                raise ParseError("Tabela de vagas incompleta.")
+            normalized_table = target.new_tag("table")
+            normalized_caption = target.new_tag("caption")
+            normalized_caption.string = title
+            normalized_table.append(normalized_caption)
+            for group, group_rows in (
+                ("thead", rows[:header_count]),
+                ("tbody", rows[header_count:]),
+            ):
+                container = target.new_tag(group)
+                for source_row in group_rows:
+                    cloned = copy.deepcopy(source_row)
+                    if group == "thead":
+                        for cell in cloned.find_all(["td", "th"], recursive=False):
+                            cell.name = "th"
+                    container.append(cloned)
+                normalized_table.append(container)
+            section.append(normalized_table)
+        target.body.append(section)
+    if not seen:
+        raise ParseError("Nenhuma turma reconhecida na página real.")
+    return target

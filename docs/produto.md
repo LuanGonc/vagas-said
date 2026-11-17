@@ -30,8 +30,9 @@ Implementação atual:
 
 Pendências relevantes:
 
-1. Validar lista de disciplinas e detalhe de turmas no portal real, incluindo nomes
-   dos campos POST e HTML sanitizado.
+1. Validar a lista de disciplinas e a origem dos identificadores internos. O detalhe
+   de turmas e os nomes dos campos POST já foram verificados em uma captura real;
+   uma repetição HTTP única teve sucesso e há parser/fixture real sanitizada.
 2. Definir o modelo de sessão após essa descoberta. O catálogo/monitor recebem contexto
    do usuário para permitir sessões separadas; nenhuma conta central foi presumida.
 3. Validar regras de disponibilidade por fase, calendário e elegibilidade.

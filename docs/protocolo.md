@@ -2,18 +2,21 @@
 
 ## Estado da descoberta
 
-Este documento separa as observações registradas no plano das partes que ainda precisam
-de validação. Nenhuma consulta autenticada foi executada nesta implementação.
+Este documento separa observações verificadas de hipóteses. Em 17/11/2026, um HAR local
+fornecido pelo usuário permitiu examinar a resposta real e repetir **uma única consulta
+autenticada de turmas**. A requisição repetida recebeu HTTP 200 e o parser reconheceu
+quatro turmas e oito observações (UERJ e Vestibular), sem executar consultas em loop.
+Isso valida a consulta com aquela sessão; não valida login, renovação ou uso contínuo.
 
 | Item | Evidência atual | Situação |
 |---|---|---|
 | Entrada | `https://www.alunoonline.uerj.br/requisicaoaluno/` no plano | Registrada nos prints; não retestada |
-| Navegação de turmas | POST de documento HTML para `/requisicaoaluno/` | Registrada no plano; corpo desconhecido |
+| Navegação de turmas | POST de documento HTML para `/requisicaoaluno/`, HTTP 200 | Verificada no HAR e repetida uma vez pelo programa |
 | Nome das tabelas | Vagas Atualizadas da Turma; Vagas para Solicitação de Inscrição | Registrado no plano |
-| Ação e campos do formulário | Ainda não identificados | Pendente |
-| Identificador da disciplina | Mapeamento para o POST desconhecido | Pendente |
-| Campos ocultos, CSRF e sessão | Nomes, renovação e expiração desconhecidos | Pendente |
-| Estrutura HTML / seletores reais | Nenhuma resposta sanitizada disponível | Pendente |
+| Campos enviados | `_token`, `requisicao`, `matricula`, `disciplinas[0]` | Nomes verificados; valores privados não reproduzidos |
+| Identificador da disciplina | `disciplinas[0]` contém identificador numérico interno | Verificada uma associação; falta a lista que fornece os identificadores |
+| Sessão | Cookie `PHPSESSID`, matrícula e campos opacos no POST | Uso verificado; login, renovação e expiração pendentes |
+| HTML real | Quatro turmas, duas tabelas por turma, categorias UERJ e Vestibular | Parser testado com resposta real e fixture sanitizada |
 | Semântica SID/SAID e calendário | Disponibilidade utilizável não comprovada | Pendente |
 | Limites e condições de consulta | Frequência permitida desconhecida | Pendente |
 
@@ -44,7 +47,45 @@ sanitizada de uma resposta e os nomes/papéis dos campos observados.
 
 | Nome do campo observado | Papel comprovado | Muda por consulta? | Obrigatório? |
 |---|---|---|---|
-| A identificar | A identificar | A verificar | A verificar |
+| `_token` | Campo opaco; mesmo valor reaparece no formulário da resposta observada | Não determinado com uma consulta | Foi enviado; não testamos sua remoção |
+| `requisicao` | Identificador opaco da navegação observada | Não determinado | Foi enviado; não testamos sua remoção |
+| `matricula` | Identificador pessoal enviado pelo navegador | Por usuário | Foi enviado; não testamos sua remoção |
+| `disciplinas[0]` | Identificador interno numérico da disciplina consultada | Por disciplina; origem na lista ainda pendente | Foi enviado; não testamos sua remoção |
+
+O HAR contém um POST de turmas e quatro recursos auxiliares, incluindo um recurso 404.
+Esse 404 não impediu a resposta HTML de turmas nem a extração programática.
+Não há captura da página anterior, login, lista de disciplinas ou sessão expirada.
+Os campos opacos não são tratados como constantes nem têm valores registrados aqui.
+Uma repetição bem-sucedida não comprova que possam ser reaproveitados indefinidamente.
+
+## Estrutura real validada e teste único
+
+O documento identifica a disciplina em um bloco com `b` de rótulo `Disciplina:`.
+Somente esse bloco é usado para verificar o código solicitado; referências a disciplinas
+equivalentes em outras partes da página não mudam a identidade da consulta.
+
+Cada turma fica em uma linha de tabela própria com o rótulo `b` `TURMA:` e seu número.
+Dentro dessa linha estão as duas tabelas de vagas. A captura usa células `td` inclusive
+nos cabeçalhos, não possui `thead`/`tbody` e contém `caption` mal fechado. O adaptador
+reconhece essa estrutura e a converte para o contrato interno, validando títulos,
+cabeçalhos agrupados e associação por linha, sem depender de índices globais de tabela.
+Turmas/linhas ambíguas, código de disciplina diferente ou contagem inválida falham
+explicitamente. Ausência de contagem permanece desconhecida.
+
+`tests/fixtures/turmas_real_sanitizado.html` preserva a estrutura relevante observada,
+com código de disciplina, textos e contagens substituídos por dados fictícios. Não
+contém cabeçalho pessoal, cookies, campos de formulário, scripts ou links de sessão.
+A fixture sintética original continua suportada e testada separadamente.
+
+A consulta única usou os campos e a sessão do HAR local, sem inventar payloads ou
+alterar a disciplina selecionada. O resultado reconhecido foi a disciplina do exemplo
+`IME01-06766` com turmas 1, 2, 3 e 4. As contagens não demonstram por si só elegibilidade
+de matrícula nem o calendário vigente; a fase continua desconhecida no modelo.
+
+Para transformar o teste em cliente de operação ainda precisamos de uma captura da
+**lista de disciplinas e da navegação dela até as turmas**, incluindo a resposta HTML
+da lista. Isso mostrará como obter os identificadores internos e campos atualizados
+sem depender de valores antigos de uma exportação. Não é necessário capturar senhas.
 
 Registrar também: tela de origem, ação manual, destino comprovado, estrutura de resposta,
 codificação, sinal de sessão expirada e data da validação. Usar somente valores fictícios.
@@ -81,17 +122,20 @@ suporta o seguinte contrato exclusivamente para iniciar e testar a implementaç�
   Por padrão, usa fase desconhecida e o horário local de leitura em UTC; esse horário
   não informa quando o servidor atualizou os dados.
 
-O contrato `PortalClient` existe apenas como interface tipada e não possui adaptador HTTP
-ou Playwright. A identificação de login expirado deverá ser validada no adaptador real;
-a rejeição de HTML fora do contrato sintético não substitui essa validação.
+O contrato `PortalClient` ainda não possui adaptador de operação com autenticação e
+renovação de sessão. A repetição HTTP única validou o protocolo observado, mas ficou
+como diagnóstico local, com os dados sensíveis fora do repositório. A identificação
+de login expirado ainda deverá ser validada; um erro de parser não a substitui.
 
 ## Aceite da Fase 0
 
 - [x] Extração local programática de duas turmas e ambas as tabelas em HTML sintético.
 - [x] Campos ausentes/zero e origens das contagens preservados distintamente.
-- [ ] Requisição que abre turmas validada em sessão autorizada do usuário.
-- [ ] Campos do POST e fluxo de sessão documentados sem segredos.
-- [ ] Parser adaptado e testado contra HTML real sanitizado.
+- [x] Requisição que abre turmas verificada e repetida uma vez com sessão do usuário.
+- [x] Campos do POST documentados sem valores privados.
+- [x] Parser adaptado e testado contra HTML real sanitizado.
+- [ ] Origem dos identificadores e renovação/expiração de sessão documentadas.
 - [ ] Regras de inscrição e limites de consulta esclarecidos.
 
-A Fase 0 não está concluída. A saída JSON atual demonstra o contrato de teste local.
+O aceite mínimo de identificar a consulta e extrair linhas reais foi atingido. A
+descoberta necessária à operação contínua permanece incompleta nos itens marcados.
