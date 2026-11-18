@@ -1,5 +1,16 @@
 # Monitor de Vagas UERJ
 
+O teste de login local está disponível:
+
+```powershell
+.\.venv\Scripts\python.exe -m uerj_monitor portal check --discipline-code IME01-06766
+```
+
+Ele pede matrícula e senha com entrada oculta e valida o catálogo antes de confirmar
+autenticação. A entrada pública foi verificada; o primeiro login com credenciais reais
+ainda precisa ser executado localmente pelo usuário. Veja [login-local.md](docs/login-local.md)
+para detalhes sobre sessão, recuperação limitada e o que já foi validado.
+
 O produto será um **bot Telegram para pessoas autorizadas**, com busca de disciplinas,
 seleção das turmas existentes e limite de **10 turmas ativas por pessoa**. As decisões
 confirmadas estão em [docs/produto.md](docs/produto.md).
@@ -16,7 +27,8 @@ própria lista e destino. A fonte de turmas continua **sintética**, e o modelo 
 UERJ será decidido após a inspeção do portal. Uma consulta real já foi repetida com
 sucesso a partir de HARs locais, inclusive o fluxo lista → turmas. O parser reconhece
 o HTML observado e há um adaptador HTTP com sessão fornecida pelo chamador; login e
-renovação de sessão ainda não foram implementados. Os comandos de arquivo/CHAT_ID abaixo
+renovação de sessão têm implementação em teste local, pendente do aceite com a conta
+do usuário. Os comandos de arquivo/CHAT_ID abaixo
 continuam disponíveis como ferramentas locais de desenvolvimento e diagnóstico.
 
 Implementação inicial do [plano](PLANO_MONITOR_VAGAS_UERJ.md): base Python, modelos,

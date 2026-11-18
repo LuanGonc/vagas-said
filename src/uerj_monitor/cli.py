@@ -1,10 +1,12 @@
 """Monitor de HTML local com SQLite e integração opcional ao Telegram."""
 
 import argparse
+import getpass
 import json
 import sqlite3
 import sys
 import time
+import warnings
 from contextlib import ExitStack
 from pathlib import Path
 
@@ -18,6 +20,13 @@ from uerj_monitor.monitor import LocalHtmlClient, Monitor
 from uerj_monitor.notifier import TelegramClient, TelegramError, load_credentials
 from uerj_monitor.outbox import DeliveryWorker, Outbox
 from uerj_monitor.parser import ParseError, parse_classes
+from uerj_monitor.portal_client import PortalQueryError
+from uerj_monitor.portal_session import (
+    AuthenticatedPortalSession,
+    PortalCredentialError,
+    PortalCredentials,
+    load_portal_credentials,
+)
 from uerj_monitor.scheduler import run_monitor
 from uerj_monitor.serialization import observation_to_dict
 from uerj_monitor.storage import SQLiteStore
@@ -45,6 +54,22 @@ def main(argv: list[str] | None = None) -> int:
     events = commands.add_parser("events", help="Listar os eventos locais mais recentes.")
     events.add_argument("--config", type=Path, required=True)
     events.add_argument("--limit", type=int, default=100)
+    portal = commands.add_parser(
+        "portal", help="Testar login UERJ local, sem monitoramento em loop."
+    )
+    portal_commands = portal.add_subparsers(dest="action", required=True)
+    check = portal_commands.add_parser(
+        "check", help="Autenticar e validar acesso ao catálogo real."
+    )
+    check.add_argument(
+        "--env-file", type=Path, help="Ler credenciais de um arquivo local explícito."
+    )
+    check.add_argument("--discipline-code", help="Consultar também as turmas desta disciplina.")
+    check.add_argument(
+        "--recover-once",
+        action="store_true",
+        help="Permitir uma reautenticação por expiração reconhecida.",
+    )
     for name, description in (
         ("bot", "Executar o bot privado com autorização e dez turmas por pessoa."),
         ("bot-demo", "Demonstrar o fluxo local sem token nem acesso à rede."),
@@ -72,6 +97,8 @@ def main(argv: list[str] | None = None) -> int:
         if name == "retry":
             action.add_argument("--event-id", type=int, required=True)
     args = parser.parse_args(argv)
+    if args.command == "portal":
+        return _portal_command(args)
     if args.command in {"bot", "bot-demo"}:
         return _bot_command(args)
     if args.command == "telegram":
@@ -253,6 +280,7 @@ def _bot_command(args: argparse.Namespace) -> int:
     except (ConfigError, TelegramError) as error:
         print(str(error), file=sys.stderr)
         return 1
+
     except KeyboardInterrupt:
         print("Bot encerrado pelo usuário.", file=sys.stderr)
         return 130
@@ -260,4 +288,53 @@ def _bot_command(args: argparse.Namespace) -> int:
         print(
             "Não foi possível executar o bot; confira o catálogo e o banco local.", file=sys.stderr
         )
+        return 1
+
+
+def _portal_command(args: argparse.Namespace) -> int:
+    try:
+        if args.env_file is not None:
+            credentials = load_portal_credentials(args.env_file)
+        else:
+            if not sys.stdin.isatty():
+                print(
+                    "Execute em um terminal interativo ou informe --env-file com um arquivo local.",
+                    file=sys.stderr,
+                )
+                return 1
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", getpass.GetPassWarning)
+                registration = getpass.getpass("Matrícula UERJ (oculta): ").strip()
+                password = getpass.getpass("Senha UERJ (oculta): ")
+            credentials = PortalCredentials(registration, password)
+        with AuthenticatedPortalSession(credentials, recover_once=args.recover_once) as session:
+            session.login()
+            disciplines = session.disciplines
+            result = {
+                "authenticated": True,
+                "state": session.state.value,
+                "disciplines": len(disciplines),
+                "with_classes": sum(item.has_classes for item in disciplines),
+            }
+            if args.discipline_code:
+                html = session.fetch_discipline_classes(args.discipline_code)
+                observations = parse_classes(html, discipline_code=args.discipline_code)
+                result["class_numbers"] = sorted({item.watch.class_number for item in observations})
+                result["observations"] = len(observations)
+            _print_json(result)
+        return 0
+    except (PortalQueryError, PortalCredentialError, ParseError) as error:
+        print(str(error), file=sys.stderr)
+        return 1
+    except getpass.GetPassWarning:
+        print(
+            "Este terminal não permite entrada oculta. Use outro terminal ou --env-file.",
+            file=sys.stderr,
+        )
+        return 1
+    except (KeyboardInterrupt, EOFError):
+        print("Teste de login interrompido.", file=sys.stderr)
+        return 130
+    except (OSError, ValueError):
+        print("Não foi possível concluir o teste local do portal.", file=sys.stderr)
         return 1

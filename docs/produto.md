@@ -1,5 +1,10 @@
 # Decisões do produto — 17/11/2026
 
+Em 18/11/2026 o usuário confirmou que o acesso pede matrícula e senha, sem etapa extra.
+Foi iniciada a autenticação local e o tratamento de sessão, descritos em
+[login-local.md](login-local.md). Sessões individuais seguem como recomendação para
+a versão multiusuário; o vínculo e a disponibilização no bot ainda não estão definidos.
+
 O produto será um bot Telegram usado por várias pessoas. Cada pessoa busca uma
 disciplina por código ou nome (exemplo: `IME01-06766 Cálculo II`), consulta as turmas
 mapeadas na fonte e escolhe quais acompanhar.

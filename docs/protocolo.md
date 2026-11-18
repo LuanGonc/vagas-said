@@ -1,5 +1,10 @@
 # Descoberta do protocolo do Aluno Online
 
+Atualização de 18/11/2026: a entrada pública e o formulário de login foram inspecionados.
+Foi implementado um teste local com matrícula/senha e tratamento de sessão. O login
+real com credenciais e o HTML de retorno pós-login ainda precisam de aceite local;
+veja [login-local.md](login-local.md) para evidências e limites.
+
 ## Estado da descoberta
 
 Este documento separa observações verificadas de hipóteses. Em 17/11/2026, um HAR local
@@ -61,7 +66,7 @@ sanitizada de uma resposta e os nomes/papéis dos campos observados.
 O primeiro HAR contém um POST de turmas e quatro recursos auxiliares, incluindo um
 recurso 404. Esse 404 não impediu a resposta HTML nem a extração programática.
 Os dois arquivos posteriores acrescentam a abertura da lista e o clique em Álgebra.
-Não há captura de login ou sessão expirada. Os arquivos posteriores foram salvos sem
+Não há captura de login autenticado ou sessão expirada. Os arquivos posteriores foram salvos sem
 extensão; o `.gitignore` também cobre o prefixo de arquivo do navegador, além de `*.har`.
 Os campos opacos não são tratados como constantes nem têm valores registrados aqui.
 Uma repetição bem-sucedida não comprova que possam ser reaproveitados indefinidamente.
@@ -156,8 +161,9 @@ suporta o seguinte contrato exclusivamente para iniciar e testar a implementaç�
   não informa quando o servidor atualizou os dados.
 
 O contrato `PortalClient` possui agora um adaptador HTTP baseado na lista observada,
-mas ainda depende de sessão autorizada fornecida pelo chamador. Login e renovação
-de sessão ainda não estão implementados. Os testes reais usam dados locais fora do
+mas depende de sessão autorizada fornecida pelo chamador. O protótipo de login e
+recuperação limitada foi adicionado em 18/11 e aguarda teste com credenciais reais.
+Os testes reais de consulta já realizados usam dados locais fora do
 repositório. A identificação específica de login expirado ainda precisa ser validada;
 a rejeição genérica de resposta incompatível não substitui essa descoberta.
 

@@ -3,6 +3,7 @@
 from typing import Protocol
 
 import httpx
+from bs4 import BeautifulSoup
 
 from uerj_monitor.discipline_parser import (
     PORTAL_URL,
@@ -28,6 +29,19 @@ class SourceError(RuntimeError):
 
 class PortalQueryError(SourceError):
     """Falha sanitizada; não reproduz requisição, resposta ou dados de sessão."""
+
+
+class SessionExpired(PortalQueryError):
+    """Foi reconhecido o formulário público de login em uma consulta autenticada."""
+
+
+def is_login_page(html: str) -> bool:
+    soup = BeautifulSoup(html, "html.parser")
+    return any(
+        form.find("input", attrs={"name": "matricula"}) is not None
+        and form.find("input", attrs={"name": "senha", "type": "password"}) is not None
+        for form in soup.find_all("form")
+    )
 
 
 class ObservedPortalClient:
@@ -57,13 +71,15 @@ class ObservedPortalClient:
             raise PortalQueryError("Falha de rede na consulta de turmas.") from None
         if response.status_code != 200:
             raise PortalQueryError("O portal não retornou uma consulta bem-sucedida.")
-        from bs4 import BeautifulSoup
-
         encoding = (
             response.charset_encoding
             or BeautifulSoup(response.content, "html.parser").original_encoding
         )
         html = response.content.decode(encoding or "utf-8", errors="replace")
+        if is_login_page(html):
+            raise SessionExpired(
+                "O portal retornou a tela de login; a sessão precisa ser renovada."
+            )
         try:
             parse_classes(html, discipline_code=discipline_code)
         except ParseError:
