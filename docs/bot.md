@@ -1,8 +1,10 @@
 # Bot Telegram com múltiplos usuários
 
-O bot já permite autorização, busca, seleção e gerenciamento de assinaturas usando
-o catálogo de demonstração. As disciplinas vêm da configuração e as turmas são extraídas
-do HTML local a cada consulta. A ligação ao catálogo real da UERJ ainda está pendente.
+O bot permite autorização, busca, seleção e gerenciamento de assinaturas em dois modos:
+demonstração local e catálogo real com uma conta UERJ central do responsável. Cada
+convidado autorizado tem sua lista de até dez turmas e não informa login UERJ.
+O modo central foi testado com respostas simuladas; o primeiro login completo com
+senha real ainda precisa ser validado pelo responsável.
 
 ## Experimentar sem Telegram
 
@@ -44,6 +46,45 @@ O exemplo mantém `[telegram] enabled = false` para os comandos antigos; executa
 é a ativação explícita da interface multiusuário e dos alertas das suas assinaturas.
 Não execute duas instâncias consumidoras de `getUpdates` para o mesmo bot.
 
+## Usar uma única conta UERJ
+
+Depois de configurar `BOT_TOKEN` e obter seu ID Telegram pelos passos anteriores:
+
+1. Valide o login local, digitando sua matrícula e senha no terminal:
+
+```powershell
+.\.venv\Scripts\python.exe -m uerj_monitor portal check --discipline-code IME01-06766
+```
+
+2. Copie a configuração central:
+
+```powershell
+Copy-Item config.bot.central.example.toml config.local.central.toml
+```
+
+3. Preencha `admin_user_ids` na cópia com seu ID Telegram. O exemplo usa outro banco,
+   `data/bot-central.sqlite3`, para começar sem as assinaturas fictícias da demonstração.
+4. Inicie:
+
+```powershell
+.\.venv\Scripts\python.exe -m uerj_monitor bot --config config.local.central.toml
+```
+
+Só você digita matrícula e senha, com entrada oculta, ao iniciar o processo. A sessão
+fica em memória até encerrar. Os convidados usam somente o Telegram; você os libera
+com `/autorizar ID`. A busca mostra as disciplinas com turmas na lista da sua conta.
+As consultas do portal são sequenciais, usando a mesma sessão do responsável.
+
+Opcionalmente, preencha `UERJ_MATRICULA` e `UERJ_SENHA` no `.env` local e descomente
+`env_file = ".env"` dentro de `[portal]` na configuração central. Isso autoriza a leitura
+explícita das credenciais desse arquivo ao iniciar, dispensando a digitação no terminal.
+Sem essa opção, o bot não lê essas credenciais do arquivo. Não envie senhas pelo Telegram.
+
+O exemplo central permite **uma** renovação automática por execução, apenas quando a
+tela de login reaparece. Credenciais rejeitadas não são repetidas. Uma segunda expiração
+exige reiniciar o processo; as assinaturas continuam no banco. Veja
+[login-local.md](login-local.md) para os limites dessa validação.
+
 ## Comandos e comportamento
 
 | Comando | Uso |
@@ -69,10 +110,12 @@ o tipo de vaga UERJ; outras categorias dependem das regras ainda não validadas.
 
 ## Monitoramento e entregas
 
-O monitor consulta a fonte local a cada intervalo configurado e cria baseline por
-assinatura, sem alerta inicial. Cada usuário recebe eventos associados à sua assinatura
-na própria conversa. O motor reserva um contexto de consulta para cada usuário; a
-possibilidade de compartilhar consultas entre contas só será decidida após a inspeção.
+O monitor consulta a fonte a cada intervalo configurado e cria baseline por assinatura,
+sem alerta inicial. No modo central, uma disciplina é consultada uma vez por ciclo,
+independentemente de quantas pessoas acompanhem suas turmas. A mesma captura alimenta
+estados independentes e cada pessoa recebe apenas seus próprios alertas. Nenhuma captura
+é reutilizada no ciclo seguinte. Falhas preservam o estado anterior, sem gerar vagas
+ou eventos artificiais.
 
 Remover uma turma ou revogar acesso cancela suas entregas ainda não iniciadas. Uma
 mensagem que já esteja em envio pode chegar mesmo após a remoção. Reautorizar uma pessoa
@@ -89,9 +132,12 @@ perder, ela não é reenviada automaticamente: a pessoa pode usar `/minhas` ou r
 o comando. As mutações de inclusão/remoção são idempotentes. A fila de alertas usa as
 regras de repetição e entrega incerta descritas em [telegram.md](telegram.md).
 
-`bot --once` processa uma página de updates e um ciclo local de manutenção, útil para
+`bot --once` processa uma página de updates e um ciclo de manutenção, útil para
 verificação. Sem `--once`, usa polling Telegram, intervalo de monitoramento e backoff.
 `Ctrl+C` fecha os recursos. Conversas em grupo e callbacks de outro usuário são ignorados.
+Após o limite de ciclos consecutivos com falhas (cinco por padrão), o bot encerra com
+código 2. Confira a conexão e a sessão e reinicie para retomar.
 
-Antes de produção ainda faltam o protocolo real do Aluno Online, a decisão de sessão,
-a regra comprovada de disponibilidade e o teste de recebimento com várias pessoas.
+Faltam validar o login completo com senha real, a operação contínua e o recebimento
+com os convidados. Os alertas atuais indicam mudanças numéricas observadas; a regra
+de vaga utilizável por fase e elegibilidade ainda precisa ser comprovada.

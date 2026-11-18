@@ -35,6 +35,10 @@ class SessionExpired(PortalQueryError):
     """Foi reconhecido o formulário público de login em uma consulta autenticada."""
 
 
+class DisciplineUnavailable(PortalQueryError):
+    """Lista válida, mas a disciplina não está presente ou não oferece turmas."""
+
+
 def is_login_page(html: str) -> bool:
     soup = BeautifulSoup(html, "html.parser")
     return any(
@@ -48,7 +52,7 @@ class ObservedPortalClient:
     """Não autentica: o chamador fornece sessão e HTML da lista autorizados.
 
     Formulários novos devem vir da navegação real, sem reconstruir campos opacos.
-    Não reutilizar esta instância entre pessoas ou iniciar polling sem validar a sessão.
+    Não reutilizar entre contas UERJ ou iniciar polling sem validar a sessão.
     """
 
     def __init__(self, session: httpx.Client, list_html: str) -> None:
@@ -59,7 +63,9 @@ class ObservedPortalClient:
     def fetch_discipline_classes(self, discipline_code: str) -> str:
         discipline = self.disciplines.get(discipline_code)
         if discipline is None or not discipline.has_classes:
-            raise PortalQueryError("Disciplina ausente ou sem turma indicada na lista consultada.")
+            raise DisciplineUnavailable(
+                "Disciplina ausente ou sem turma indicada na lista consultada."
+            )
         try:
             response = self.session.post(
                 PORTAL_URL,

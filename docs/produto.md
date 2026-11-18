@@ -1,9 +1,10 @@
-# Decisões do produto — 17/11/2026
+# Decisões do produto — atualização de 18/11/2026
 
 Em 18/11/2026 o usuário confirmou que o acesso pede matrícula e senha, sem etapa extra.
-Foi iniciada a autenticação local e o tratamento de sessão, descritos em
-[login-local.md](login-local.md). Sessões individuais seguem como recomendação para
-a versão multiusuário; o vínculo e a disponibilização no bot ainda não estão definidos.
+O projeto é pessoal, para aproximadamente cinco conhecidos. O usuário escolheu uma
+**única conta UERJ do responsável**, pois os convidados usam basicamente o mesmo
+catálogo. Os convidados não fornecem matrícula ou senha. A autenticação local e o
+tratamento de sessão estão descritos em [login-local.md](login-local.md).
 
 O produto será um bot Telegram usado por várias pessoas. Cada pessoa busca uma
 disciplina por código ou nome (exemplo: `IME01-06766 Cálculo II`), consulta as turmas
@@ -16,7 +17,9 @@ Decisões confirmadas pelo usuário:
 - O monitoramento continua após o alerta, até a pessoa remover a turma.
 - Remover uma turma libera uma posição. Reativá-la estabelece uma nova baseline.
 - Acesso somente para pessoas autorizadas pelo responsável.
-- Sessão UERJ individual versus conta central: **decisão adiada até inspecionar o portal**.
+- Uma conta UERJ central; o catálogo fica limitado ao que o responsável consegue consultar.
+- Cada pessoa continua com identidade Telegram, permissões, lista e alertas próprios.
+- O uso previsto é pequeno; cinco pessoas não é um limite rígido implementado.
 
 Implementação atual:
 
@@ -30,16 +33,22 @@ Implementação atual:
 - Estado e baseline por assinatura. Duas pessoas na mesma turma têm estados e
   entregas independentes. Novas assinaturas não herdam a baseline de outra pessoa.
 - Alertas continuam indicando mudanças observadas, sem inferir inscrição possível.
-- A fonte atual é HTML sintético local; a busca de disciplinas usa os códigos e nomes
-  configurados. Não há descoberta do catálogo completo da UERJ implementada ainda.
+- Há dois modos explícitos: demonstração com HTML local e catálogo central autenticado.
+  No central, a busca atualiza a lista de disciplinas com turmas do responsável e
+  extrai as turmas da consulta real, sem cadastro manual de códigos ou identificadores.
+- O monitor central consulta cada disciplina uma vez por ciclo para todos os assinantes,
+  preservando estados e entregas individuais. O cache termina ao concluir o ciclo.
+- Só o responsável informa as credenciais no terminal ao iniciar; um arquivo local
+  explícito é opcional. Senha e cookies não entram no banco, no Telegram ou no Git.
+- O comando central está implementado e testado com transportes simulados. O primeiro
+  login completo por senha com a conta real ainda precisa ser validado localmente.
 
 Pendências relevantes:
 
-1. Ligar o catálogo observado ao contexto autenticado de cada usuário. A lista de
-   disciplinas, origem dos identificadores e detalhe das turmas já foram verificados;
-   o fluxo lista → turmas foi repetido com sucesso e há parsers/fixtures sanitizadas.
-2. Definir o modelo de sessão após essa descoberta. O catálogo/monitor recebem contexto
-   do usuário para permitir sessões separadas; nenhuma conta central foi presumida.
+1. Executar `portal check` com a conta do responsável e validar a página imediatamente
+   após o login. A lista e o detalhe de turmas já foram consultados com uma sessão
+   existente; isso não comprova o login completo por senha.
+2. Validar o modo central com o portal e o Telegram reais, incluindo expiração e retomada.
 3. Validar regras de disponibilidade por fase, calendário e elegibilidade.
 4. Validar o bot em conversas reais e testar operação contínua com vários usuários.
 

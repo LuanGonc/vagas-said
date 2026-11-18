@@ -88,3 +88,27 @@ def test_bot_admins_require_positive_integer_ids(tmp_path, admins):
     content = EXAMPLE.read_text(encoding="utf-8") + f"\n[bot]\nadmin_user_ids = {admins}\n"
     with pytest.raises(ConfigError):
         load_config(write_config(tmp_path, content))
+
+
+def test_central_bot_config_discovers_catalog_without_local_sources(tmp_path):
+    example = EXAMPLE.parent / "config.bot.central.example.toml"
+    config = load_config(example, require_watches=False)
+    assert config.portal.enabled is True
+    assert config.portal.env_file is None
+    assert config.portal.recover_once is True
+    assert config.sources == {}
+    assert config.watches == ()
+    content = example.read_text(encoding="utf-8").replace(
+        '# env_file = ".env"', 'env_file = "private/.env"'
+    )
+    config = load_config(write_config(tmp_path, content), require_watches=False)
+    assert config.portal.env_file == tmp_path / "private" / ".env"
+
+
+@pytest.mark.parametrize(
+    "portal", ['enabled = "sim"', "enabled = 1", 'recover_once = "sim"', 'env_file = ""']
+)
+def test_central_options_are_strict(tmp_path, portal):
+    content = EXAMPLE.read_text(encoding="utf-8") + f"\n[portal]\n{portal}\n"
+    with pytest.raises(ConfigError):
+        load_config(write_config(tmp_path, content))

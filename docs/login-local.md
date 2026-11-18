@@ -66,7 +66,10 @@ credenciais no Telegram ou no chat do projeto.
 `AuthenticatedPortalSession` implementa o contrato de consulta existente. Cada instância
 tem seu próprio cliente HTTP, cookies, campos retornados e credenciais. Antes de consultar
 uma disciplina, atualiza a lista e usa o identificador e formulário recém-obtidos.
-Uma instância não deve ser compartilhada entre pessoas ou usada de forma concorrente.
+Cada instância representa uma única conta UERJ e não deve ser usada de forma concorrente.
+No bot central, uma instância do responsável atende sequencialmente os convidados,
+mantendo as listas e entregas separadas pela identidade Telegram. Não são criadas
+sessões UERJ por convidado. Veja a configuração em [bot.md](bot.md).
 
 | Estado | Significado |
 |---|---|

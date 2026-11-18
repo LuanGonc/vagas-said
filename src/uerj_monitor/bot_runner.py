@@ -1,4 +1,4 @@
-"""Polling Telegram com offset durável e monitoramento local das assinaturas."""
+"""Polling Telegram com offset durável e monitoramento das assinaturas."""
 
 import random
 import time
@@ -117,6 +117,8 @@ class BotRunner:
         while True:
             try:
                 self.run_once()
+                if self.monitor_failures >= self.settings.max_failures:
+                    return 2
                 failures = 0
             except TelegramError as error:
                 failures += 1

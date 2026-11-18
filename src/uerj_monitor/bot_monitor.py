@@ -1,10 +1,11 @@
-"""Monitoramento por assinatura; contexto de consulta reservado para cada usuário."""
+"""Consulta compartilhada no modo central, com estado e entregas por assinatura."""
 
 from collections import defaultdict
 from dataclasses import replace
 from datetime import UTC, datetime
 
-from uerj_monitor.catalog import LocalCatalog
+from uerj_monitor.catalog import Catalog
+from uerj_monitor.models import ClassObservation
 from uerj_monitor.monitor import CycleResult, PollFailure, SourceError
 from uerj_monitor.notifier import TelegramCredentials
 from uerj_monitor.parser import ParseError
@@ -17,7 +18,7 @@ class SubscriptionMonitor:
     def __init__(
         self,
         store: SQLiteStore,
-        catalog: LocalCatalog,
+        catalog: Catalog,
         credentials: TelegramCredentials,
         clock=lambda: datetime.now(UTC),
     ) -> None:
@@ -29,10 +30,17 @@ class SubscriptionMonitor:
         for subscription in self.repository.list_active():
             groups[subscription.user_id, subscription.watch.discipline_code].append(subscription)
         events, failures, observed = [], [], 0
+        cache: dict[tuple[int | None, str], list[ClassObservation] | None] = {}
         for (user_id, code), subscriptions in groups.items():
-            try:
-                observations = self.catalog.observe(code, user_id, self.clock())
-            except (SourceError, ParseError, OSError, ValueError):
+            scope = None if self.catalog.shared_queries else user_id
+            key = scope, code
+            if key not in cache:
+                try:
+                    cache[key] = self.catalog.observe(code, user_id, self.clock())
+                except (SourceError, ParseError, OSError, ValueError):
+                    cache[key] = None
+            observations = cache[key]
+            if observations is None:
                 failures.append(PollFailure(code, "source_error"))
                 continue
             by_key = {watch_key(item.watch): item for item in observations}

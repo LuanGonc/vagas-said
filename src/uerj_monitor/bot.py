@@ -3,7 +3,7 @@
 import time
 from dataclasses import dataclass
 
-from uerj_monitor.catalog import LocalCatalog
+from uerj_monitor.catalog import Catalog
 from uerj_monitor.monitor import SourceError
 from uerj_monitor.parser import ParseError
 from uerj_monitor.subscriptions import SubscribeResult, SubscriptionRepository
@@ -28,7 +28,7 @@ class BotService:
     def __init__(
         self,
         repository: SubscriptionRepository,
-        catalog: LocalCatalog,
+        catalog: Catalog,
         clock=time.time,
         admin_user_ids: tuple[int, ...] = (),
     ):
@@ -119,7 +119,7 @@ class BotService:
             return Reply("Acesso revogado e monitoramentos da pessoa desativados.")
         if command in {"/start", "/ajuda"}:
             return Reply(
-                "Demonstração local — Monitor UERJ\n"
+                self._label("Monitor UERJ") + "\n"
                 "Busque uma disciplina pelo código ou nome e escolha as turmas nos botões.\n"
                 "Você pode acompanhar até 10 turmas ao todo.\n"
                 "/buscar Cálculo II — buscar disciplinas\n"
@@ -140,6 +140,9 @@ class BotService:
         if command.startswith("/"):
             return Reply("Use /buscar, /minhas ou /parar. Para ajuda, envie /ajuda.")
         return self._search(user_id, text)
+
+    def _label(self, text: str) -> str:
+        return f"Demonstração local — {text}" if self.catalog.is_demo else text
 
     def _search(self, user_id: int, query: str, page: int = 0) -> Reply:
         query = query.strip()[:150]
@@ -170,7 +173,7 @@ class BotService:
                     },
                 )
             )
-        return Reply("Demonstração local — escolha uma disciplina:", {"inline_keyboard": rows})
+        return Reply(self._label("Escolha uma disciplina:"), {"inline_keyboard": rows})
 
     def _classes(self, user_id: int, code: str, page: int = 0) -> Reply:
         classes = self.catalog.classes(code, user_id)
@@ -202,7 +205,7 @@ class BotService:
         if not rows:
             return Reply("Não há turmas UERJ para mostrar nesta consulta.")
         return Reply(
-            f"Demonstração local — {code}\nEscolha as turmas que quer acompanhar:",
+            self._label(code) + "\nEscolha as turmas que quer acompanhar:",
             {"inline_keyboard": rows},
         )
 

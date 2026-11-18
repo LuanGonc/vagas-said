@@ -13,7 +13,7 @@ from pathlib import Path
 from uerj_monitor.bot import BotService
 from uerj_monitor.bot_monitor import SubscriptionMonitor
 from uerj_monitor.bot_runner import BotRunner
-from uerj_monitor.catalog import LocalCatalog
+from uerj_monitor.catalog import CentralPortalCatalog, LocalCatalog
 from uerj_monitor.config import ConfigError, load_config
 from uerj_monitor.models import SourcePhase
 from uerj_monitor.monitor import LocalHtmlClient, Monitor
@@ -230,11 +230,31 @@ def _telegram_command(args: argparse.Namespace) -> int:
 def _bot_command(args: argparse.Namespace) -> int:
     try:
         config = load_config(args.config, require_watches=False)
-        catalog = LocalCatalog(config)
-        with SQLiteStore(":memory:" if args.command == "bot-demo" else config.database) as store:
+        demo = args.command == "bot-demo"
+        if demo and config.portal.enabled:
+            raise ConfigError("Use config.bot.example.toml para a demonstração sem rede.")
+        with ExitStack() as stack:
+            if demo:
+                catalog = LocalCatalog(config)
+            else:
+                credentials = load_credentials(
+                    config.telegram.env_file, require_chat=False, ignore_chat=True
+                )
+                if config.portal.enabled:
+                    portal = stack.enter_context(
+                        AuthenticatedPortalSession(
+                            _read_portal_credentials(config.portal.env_file),
+                            recover_once=config.portal.recover_once,
+                        )
+                    )
+                    portal.login()
+                    catalog = CentralPortalCatalog(portal, phase=config.phase)
+                else:
+                    catalog = LocalCatalog(config)
+            store = stack.enter_context(SQLiteStore(":memory:" if demo else config.database))
             repository = SubscriptionRepository(store)
             service = BotService(repository, catalog, admin_user_ids=config.admin_user_ids)
-            if args.command == "bot-demo":
+            if demo:
                 service = BotService(repository, catalog, admin_user_ids=(1,))
                 update = {
                     "message": {
@@ -261,26 +281,44 @@ def _bot_command(args: argparse.Namespace) -> int:
                 update["message"]["text"] = "/minhas"
                 _print_json({"demo": service.handle(update).reply.text})
                 return 0
-            credentials = load_credentials(
-                config.telegram.env_file, require_chat=False, ignore_chat=True
+            client = stack.enter_context(TelegramClient(credentials))
+            runner = BotRunner(
+                service,
+                SubscriptionMonitor(store, catalog, credentials),
+                client,
+                store,
+                config.scheduler,
+                report=_print_json,
             )
-            with TelegramClient(credentials) as client:
-                runner = BotRunner(
-                    service,
-                    SubscriptionMonitor(store, catalog, credentials),
-                    client,
-                    store,
-                    config.scheduler,
-                    report=_print_json,
+            if args.once:
+                runner.run_once(timeout=0)
+                return 0
+            code = runner.run()
+            if code == 2:
+                print(
+                    "Bot encerrado após falhas consecutivas. Confira a conexão e, no modo "
+                    "central, a sessão UERJ; reinicie para retomar.",
+                    file=sys.stderr,
                 )
-                if args.once:
-                    runner.run_once(timeout=0)
-                    return 0
-                return runner.run()
-    except (ConfigError, TelegramError) as error:
+            return code
+    except (
+        ConfigError,
+        TelegramError,
+        PortalQueryError,
+        PortalCredentialError,
+        ParseError,
+    ) as error:
         print(str(error), file=sys.stderr)
         return 1
-
+    except getpass.GetPassWarning:
+        print(
+            "Este terminal não permite entrada oculta. Use outro terminal ou portal.env_file.",
+            file=sys.stderr,
+        )
+        return 1
+    except EOFError:
+        print("Entrada local de credenciais interrompida.", file=sys.stderr)
+        return 130
     except KeyboardInterrupt:
         print("Bot encerrado pelo usuário.", file=sys.stderr)
         return 130
@@ -291,22 +329,23 @@ def _bot_command(args: argparse.Namespace) -> int:
         return 1
 
 
+def _read_portal_credentials(env_file: Path | None) -> PortalCredentials:
+    if env_file is not None:
+        return load_portal_credentials(env_file)
+    if not sys.stdin.isatty():
+        raise PortalCredentialError(
+            "Execute em um terminal interativo ou informe um arquivo local de credenciais."
+        )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", getpass.GetPassWarning)
+        registration = getpass.getpass("Matrícula UERJ (oculta): ").strip()
+        password = getpass.getpass("Senha UERJ (oculta): ")
+    return PortalCredentials(registration, password)
+
+
 def _portal_command(args: argparse.Namespace) -> int:
     try:
-        if args.env_file is not None:
-            credentials = load_portal_credentials(args.env_file)
-        else:
-            if not sys.stdin.isatty():
-                print(
-                    "Execute em um terminal interativo ou informe --env-file com um arquivo local.",
-                    file=sys.stderr,
-                )
-                return 1
-            with warnings.catch_warnings():
-                warnings.simplefilter("error", getpass.GetPassWarning)
-                registration = getpass.getpass("Matrícula UERJ (oculta): ").strip()
-                password = getpass.getpass("Senha UERJ (oculta): ")
-            credentials = PortalCredentials(registration, password)
+        credentials = _read_portal_credentials(args.env_file)
         with AuthenticatedPortalSession(credentials, recover_once=args.recover_once) as session:
             session.login()
             disciplines = session.disciplines

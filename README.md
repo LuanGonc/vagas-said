@@ -14,6 +14,9 @@ para detalhes sobre sessão, recuperação limitada e o que já foi validado.
 O produto será um **bot Telegram para pessoas autorizadas**, com busca de disciplinas,
 seleção das turmas existentes e limite de **10 turmas ativas por pessoa**. As decisões
 confirmadas estão em [docs/produto.md](docs/produto.md).
+Para o uso pessoal com conhecidos, foi escolhido o modo de **conta UERJ central**:
+só o responsável fornece matrícula e senha localmente. Cada convidado usa sua conversa
+Telegram e acompanha suas próprias turmas no catálogo disponível para essa conta.
 
 O fluxo multiusuário já pode ser exercitado com dados locais:
 
@@ -21,15 +24,24 @@ O fluxo multiusuário já pode ser exercitado com dados locais:
 .\.venv\Scripts\python.exe -m uerj_monitor bot-demo --config config.bot.example.toml
 ```
 
-Para configurar o bot real, autorizar convidados e escolher turmas, siga
-[docs/bot.md](docs/bot.md). O modo `bot` usa apenas `BOT_TOKEN`; cada conversa tem sua
-própria lista e destino. A fonte de turmas continua **sintética**, e o modelo de sessão
-UERJ será decidido após a inspeção do portal. Uma consulta real já foi repetida com
-sucesso a partir de HARs locais, inclusive o fluxo lista → turmas. O parser reconhece
-o HTML observado e há um adaptador HTTP com sessão fornecida pelo chamador; login e
-renovação de sessão têm implementação em teste local, pendente do aceite com a conta
-do usuário. Os comandos de arquivo/CHAT_ID abaixo
-continuam disponíveis como ferramentas locais de desenvolvimento e diagnóstico.
+Para configurar o Telegram, obter seu ID e autorizar convidados, siga
+[docs/bot.md](docs/bot.md). O bot usa `BOT_TOKEN` e ignora `CHAT_ID`; cada conversa tem
+sua própria lista e destino. A configuração `config.bot.example.toml` continua sintética.
+Para ligar ao catálogo UERJ, após validar o login local, use:
+
+```powershell
+Copy-Item config.bot.central.example.toml config.local.central.toml
+# Preencha admin_user_ids na cópia com seu ID Telegram.
+.\.venv\Scripts\python.exe -m uerj_monitor bot --config config.local.central.toml
+```
+
+Somente o responsável digita suas credenciais no terminal ao iniciar. O modo central
+consulta cada disciplina uma vez por ciclo para todos os assinantes, preservando
+estados e alertas individuais. A integração está testada com transportes simulados.
+O fluxo lista → turmas já foi consultado no portal com sessão existente, mas o login
+completo por senha e a operação contínua real ainda precisam ser validados localmente.
+Os alertas indicam mudanças observadas; a regra de vaga utilizável continua pendente.
+Os comandos de arquivo/CHAT_ID abaixo continuam como ferramentas de desenvolvimento.
 
 Implementação inicial do [plano](PLANO_MONITOR_VAGAS_UERJ.md): base Python, modelos,
 parser de **HTML sintético**, monitor de arquivos locais, persistência SQLite, CLI
@@ -37,8 +49,8 @@ e integração opcional ao Telegram com fila persistente.
 A Fase 2 pode ser exercitada com simulações enquanto a descoberta do protocolo segue
 pendente. O parser aceita a fixture sintética e a estrutura real verificada, com
 teste único de consulta HTTP documentado em [protocolo.md](docs/protocolo.md).
-A operação contínua do bot ainda usa arquivos locais. O Telegram permanece desativado por padrão e precisa
-de um bot e chat configurados localmente para o teste de entrega real.
+O bot oferece operação com arquivos locais ou sessão central, conforme a configuração.
+O Telegram precisa de um token configurado localmente para testar a entrega real.
 
 ## Preparar e executar (PowerShell / Python 3.12+)
 

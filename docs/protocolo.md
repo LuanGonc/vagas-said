@@ -119,11 +119,13 @@ formulário fictícios e remove os valores acadêmicos das linhas originais.
 Ele resolve o código para o identificador observado, obtém os campos do formulário,
 efetua uma consulta de turmas e valida a disciplina retornada. Não segue redirecionamentos
 nem transforma login/erro em lista vazia. O chamador deve manter a sessão isolada por
-contexto de usuário. Este adaptador não implementa login nem decide o modelo de conta.
+conta UERJ. Este adaptador não implementa login nem decide o modelo de conta.
 
-Os 76 itens são do currículo da conta logada, não um índice público global. A decisão
-entre sessão individual e conta central permanece aberta e precisa considerar que
-outras pessoas podem ter currículos diferentes.
+Os 76 itens são do currículo da conta logada, não um índice público global. Em
+18/11/2026 o usuário escolheu uma conta central para aproximadamente cinco conhecidos
+e confirmou que usam basicamente o mesmo catálogo. `CentralPortalCatalog` liga essa
+sessão ao bot; as assinaturas continuam individuais. Disciplinas fora da lista do
+responsável não passam a ser consultáveis por esse compartilhamento.
 
 Registrar também: tela de origem, ação manual, destino comprovado, estrutura de resposta,
 codificação, sinal de sessão expirada e data da validação. Usar somente valores fictícios.

@@ -18,7 +18,12 @@ from uerj_monitor.auth_forms import (
 )
 from uerj_monitor.discipline_parser import PORTAL_URL, parse_navigation_fields
 from uerj_monitor.parser import ParseError
-from uerj_monitor.portal_client import ObservedPortalClient, PortalQueryError, SessionExpired
+from uerj_monitor.portal_client import (
+    DisciplineUnavailable,
+    ObservedPortalClient,
+    PortalQueryError,
+    SessionExpired,
+)
 
 
 class SessionState(StrEnum):
@@ -197,6 +202,8 @@ class AuthenticatedPortalSession:
             self._recoveries = 1
             try:
                 return operation()
+            except DisciplineUnavailable:
+                raise
             except SessionExpired:
                 self.state = SessionState.EXPIRED
                 self._client = self._navigation = None
@@ -205,6 +212,8 @@ class AuthenticatedPortalSession:
             except (PortalQueryError, ParseError):
                 self._invalidate()
                 raise
+        except DisciplineUnavailable:
+            raise
         except (PortalQueryError, ParseError):
             self._invalidate()
             raise

@@ -3,7 +3,7 @@
 import codecs
 import math
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from uerj_monitor.models import SourcePhase, Watch
@@ -42,6 +42,13 @@ class TelegramSettings:
 
 
 @dataclass(frozen=True)
+class PortalSettings:
+    enabled: bool = False
+    env_file: Path | None = None
+    recover_once: bool = False
+
+
+@dataclass(frozen=True)
 class MonitorConfig:
     database: Path
     sources: dict[str, Path]
@@ -52,6 +59,7 @@ class MonitorConfig:
     telegram: TelegramSettings
     discipline_names: dict[str, str]
     admin_user_ids: tuple[int, ...]
+    portal: PortalSettings = field(default_factory=PortalSettings)
 
 
 def _string(value: object) -> str:
@@ -77,7 +85,7 @@ def load_config(path: Path, *, require_watches: bool = True) -> MonitorConfig:
         raw = tomllib.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, UnicodeError, tomllib.TOMLDecodeError) as error:
         raise ConfigError("Não foi possível ler a configuração TOML.") from error
-    _keys(raw, {"monitor", "disciplines", "watches", "telegram", "bot"})
+    _keys(raw, {"monitor", "disciplines", "watches", "telegram", "bot", "portal"})
     options = _keys(
         raw.get("monitor", {}),
         {
@@ -126,6 +134,14 @@ def load_config(path: Path, *, require_watches: bool = True) -> MonitorConfig:
         enabled=enabled,
         env_file=(root / _string(telegram.get("env_file", ".env"))).resolve(),
     )
+    portal = _keys(raw.get("portal", {}), {"enabled", "env_file", "recover_once"})
+    if any(type(portal.get(key, False)) is not bool for key in ("enabled", "recover_once")):
+        raise ConfigError("portal.enabled e portal.recover_once devem ser true ou false.")
+    portal_settings = PortalSettings(
+        enabled=portal.get("enabled", False),
+        env_file=(root / _string(portal["env_file"])).resolve() if "env_file" in portal else None,
+        recover_once=portal.get("recover_once", False),
+    )
     sources: dict[str, Path] = {}
     discipline_names: dict[str, str] = {}
     for entry in _tables(raw.get("disciplines", [])):
@@ -161,7 +177,7 @@ def load_config(path: Path, *, require_watches: bool = True) -> MonitorConfig:
             watches.append(watch)
     if require_watches and not watches:
         raise ConfigError("Configure pelo menos uma turma ativa.")
-    if not sources:
+    if not sources and not portal_settings.enabled:
         raise ConfigError("Configure pelo menos uma disciplina no catálogo local.")
     return MonitorConfig(
         database=(root / _string(options.get("database", "data/monitor.sqlite3"))).resolve(),
@@ -173,4 +189,5 @@ def load_config(path: Path, *, require_watches: bool = True) -> MonitorConfig:
         telegram=telegram_settings,
         discipline_names=discipline_names,
         admin_user_ids=tuple(dict.fromkeys(admins)),
+        portal=portal_settings,
     )

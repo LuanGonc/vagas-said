@@ -9,6 +9,8 @@ from uerj_monitor.bot_monitor import SubscriptionMonitor
 from uerj_monitor.bot_runner import BotRunner
 from uerj_monitor.catalog import LocalCatalog
 from uerj_monitor.config import load_config
+from uerj_monitor.models import Watch
+from uerj_monitor.monitor import SourceError
 from uerj_monitor.notifier import TelegramClient, TelegramCredentials
 from uerj_monitor.storage import SQLiteStore
 from uerj_monitor.subscriptions import SubscriptionRepository
@@ -110,3 +112,45 @@ def test_polling_commands_callbacks_restart_and_private_notification(tmp_path):
             assert sent[-1]["chat_id"] == "2"
             assert "Solicitadas / Total: 18" in sent[-1]["text"]
             assert service.repository.list_active(2)
+
+
+def test_repeated_source_failures_stop_runner_and_preserve_baseline(tmp_path, monkeypatch):
+    config = load_config(
+        Path(__file__).parents[1] / "config.bot.example.toml", require_watches=False
+    )
+    catalog = LocalCatalog(config)
+    credentials = TelegramCredentials("123456789:synthetic_test_token")
+    now, polls = [0.0], []
+
+    def handler(request):
+        polls.append(request)
+        now[0] += 1000
+        return httpx.Response(200, json={"ok": True, "result": []})
+
+    def unavailable(*args):
+        raise SourceError("Fonte indisponível.")
+
+    with SQLiteStore(tmp_path / "bot.sqlite3") as store:
+        repository = SubscriptionRepository(store)
+        repository.grant(1, 1)
+        watch = Watch("IME01-06766", "01")
+        repository.subscribe(1, watch)
+        subscription = repository.list_active(1)[0]
+        monitor = SubscriptionMonitor(store, catalog, credentials)
+        monitor.poll_once()
+        baseline = store.load_latest(watch, subscription_id=subscription.id)
+        monkeypatch.setattr(catalog, "observe", unavailable)
+        with TelegramClient(credentials, transport=httpx.MockTransport(handler)) as client:
+            runner = BotRunner(
+                BotService(repository, catalog),
+                monitor,
+                client,
+                store,
+                replace(config.scheduler, max_failures=2),
+                clock=lambda: now[0],
+                wait=lambda seconds: None,
+            )
+            assert runner.run() == 2
+        assert len(polls) == 2
+        assert store.load_latest(watch, subscription_id=subscription.id) == baseline
+        assert store.list_events() == []
