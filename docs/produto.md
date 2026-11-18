@@ -38,19 +38,19 @@ Implementação atual:
   extrai as turmas da consulta real, sem cadastro manual de códigos ou identificadores.
 - O monitor central consulta cada disciplina uma vez por ciclo para todos os assinantes,
   preservando estados e entregas individuais. O cache termina ao concluir o ciclo.
-- Só o responsável informa as credenciais no terminal ao iniciar; um arquivo local
-  explícito é opcional. Senha e cookies não entram no banco, no Telegram ou no Git.
-- O comando central está implementado e testado com transportes simulados. O primeiro
-  login completo por senha com a conta real ainda precisa ser validado localmente.
+- As credenciais do responsável vêm de entrada oculta, arquivo local explícito ou
+  variáveis de ambiente com `from_env = true`. As fontes não se misturam. Senha e
+  cookies não entram no banco, no Telegram ou no Git.
+- O usuário confirmou `portal check` no portal real: estado `ready`, 76 disciplinas,
+  53 com turmas e turmas `1` a `4` da disciplina consultada (oito observações).
+  A integração do bot está implementada e testada com transportes simulados.
 
 Pendências relevantes:
 
-1. Executar `portal check` com a conta do responsável e validar a página imediatamente
-   após o login. A lista e o detalhe de turmas já foram consultados com uma sessão
-   existente; isso não comprova o login completo por senha.
-2. Validar o modo central com o portal e o Telegram reais, incluindo expiração e retomada.
-3. Validar regras de disponibilidade por fase, calendário e elegibilidade.
-4. Validar o bot em conversas reais e testar operação contínua com vários usuários.
+1. Validar o modo central com o portal e o Telegram reais, incluindo expiração e retomada.
+2. Validar regras de disponibilidade por fase, calendário e elegibilidade.
+3. Validar o bot em conversas reais e testar operação contínua com vários usuários.
 
-Esta atualização complementa o plano original. Os testes locais não concluem os aceites
-de consulta autenticada, disponibilidade real ou recebimento de alerta real.
+Esta atualização complementa o plano original. O login e a consulta autenticada foram
+confirmados pelo usuário; os testes locais não comprovam disponibilidade utilizável
+ou recebimento de alerta real.

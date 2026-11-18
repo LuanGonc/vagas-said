@@ -19,6 +19,12 @@ Referências públicas inspecionadas: [entrada](https://www.alunoonline.uerj.br/
 [formulário](https://www.alunoonline.uerj.br/requisicaoaluno/) e
 [JavaScript do portal](https://www.alunoonline.uerj.br/public/js/alunoOnline.js?v=1.0.1).
 
+No mesmo dia, o usuário executou `portal check --discipline-code IME01-06766` com sua
+conta e informou `authenticated: true`, estado `ready`, 76 disciplinas, 53 com turmas,
+turmas `1`, `2`, `3`, `4` e oito observações. Isso confirma o login completo e a consulta
+nesse teste real. A expiração, a renovação e a operação contínua ainda não foram validadas
+no portal real.
+
 ## Testar com sua conta no computador
 
 No PowerShell, na pasta do projeto:
@@ -60,6 +66,28 @@ ignorado pelo Git e fornecer o caminho explicitamente:
 Essa leitura não acontece implicitamente e não altera variáveis de ambiente. O arquivo
 é texto local; a entrada interativa evita armazenar a senha no disco. Não compartilhe
 credenciais no Telegram ou no chat do projeto.
+
+### Variáveis de ambiente
+
+Também é possível definir `UERJ_MATRICULA` e `UERJ_SENHA` no ambiente do processo.
+No PowerShell, para preencher sem incluir a senha literal no comando:
+
+```powershell
+$env:UERJ_MATRICULA = Read-Host "Matrícula UERJ"
+$senhaUerj = Read-Host "Senha UERJ" -AsSecureString
+$env:UERJ_SENHA = [System.Net.NetworkCredential]::new("", $senhaUerj).Password
+.\.venv\Scripts\python.exe -m uerj_monitor portal check --from-env --discipline-code IME01-06766
+```
+
+As variáveis valem para esse PowerShell e os programas iniciados por ele. Essa opção
+não cria arquivo de credenciais. `--from-env` lê somente o ambiente; `--env-file` lê
+somente o arquivo escolhido, sem sobreposição. As opções não podem ser combinadas.
+Sem ambas, o comando continua pedindo entrada oculta, mesmo que haja variáveis definidas.
+Se o modo ambiente for escolhido e faltar uma das variáveis, o programa encerra antes
+de tentar login, sem mudar automaticamente para outra fonte.
+
+Para o bot central, configure `from_env = true` em `[portal]`, sem `env_file`. As mesmas
+variáveis serão lidas ao iniciar. O token Telegram também pode vir de `BOT_TOKEN` no ambiente.
 
 ## Expiração e recuperação
 
@@ -103,19 +131,18 @@ suprimido enquanto a instância de autenticação está ativa.
 - O formulário público e a sequência de criação do cookie foram observados no portal real.
 - A fixture `login_publico_sanitizado.html` deriva desse formulário, com campos opacos
   fictícios e entradas de matrícula/senha vazias.
-- O HTML da página autenticada imediatamente após o login **ainda não foi validado com
-  credenciais reais neste desenvolvimento**. A fixture `home_autenticada_sintetica.html`
-  está identificada como sintética e usa o contrato público de `executaMenu` e os campos
-  do HAR já verificados. O comando falha explicitamente se o retorno real for diferente.
+- O usuário confirmou o login completo e a consulta de turmas no portal real em 18/11.
+  A fixture `home_autenticada_sintetica.html` continua sintética, construída a partir
+  do contrato público de `executaMenu` e dos campos do HAR. O HTML autenticado privado
+  não foi incorporado ao repositório. Retornos incompatíveis continuam gerando erro.
 - Os testes HTTP simulados cobrem cookies, campos novos, login rejeitado, desafio extra,
   expiração em HTTP 200, recuperação limitada, privacidade e preservação da baseline.
 - As consultas reais lista → turmas do dia anterior usaram sessão autorizada dos HARs;
   elas não comprovam o novo fluxo de login por matrícula e senha.
 
-O próximo aceite é executar `portal check` localmente com a conta do usuário e confirmar
-a resposta do login e o menu autenticado. Depois disso, falta ligar sessões de usuários
-autorizados ao catálogo do bot, definir o vínculo Telegram/conta UERJ e validar expiração
-real, renovação e regras de disponibilidade em operação controlada.
+O catálogo central já está ligado à conta única do responsável. Os próximos aceites
+são testar o bot com os convidados, validar expiração real, renovação e regras de
+disponibilidade em operação controlada.
 
 Se o teste falhar, informe somente a mensagem sanitizada exibida. Não exporte um HAR de
 login contendo senha. Uma eventual inspeção adicional deve abranger a página já

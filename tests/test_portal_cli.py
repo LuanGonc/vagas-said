@@ -78,7 +78,42 @@ def test_env_mode_is_explicit_and_prints_only_summary(tmp_path, fake_portal, cap
     assert fake_portal[0].recover_once is True
 
 
+def test_process_environment_mode_needs_no_prompt_or_file(monkeypatch, fake_portal, capsys):
+    monkeypatch.setenv("UERJ_MATRICULA", "000000000000")
+    monkeypatch.setenv("UERJ_SENHA", PASSWORD)
+    monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: False)
+    assert cli.main(["portal", "check", "--from-env"]) == 0
+    assert fake_portal[0].credentials.password == PASSWORD
+    assert fake_portal[0].credentials.registration == "000000000000"
+    output = capsys.readouterr()
+    assert PASSWORD not in output.out + output.err
+    assert "000000000000" not in output.out + output.err
+
+
+@pytest.mark.parametrize("missing", ["UERJ_MATRICULA", "UERJ_SENHA"])
+def test_incomplete_environment_stops_before_login_or_prompt(
+    missing, monkeypatch, fake_portal, capsys
+):
+    monkeypatch.setenv("UERJ_MATRICULA", "000000000000")
+    monkeypatch.setenv("UERJ_SENHA", PASSWORD)
+    monkeypatch.delenv(missing)
+    assert cli.main(["portal", "check", "--from-env"]) == 1
+    assert fake_portal == []
+    assert "ambiente do processo" in capsys.readouterr().err
+
+
+def test_process_environment_and_file_flags_cannot_be_combined(fake_portal, capsys):
+    with pytest.raises(SystemExit) as error:
+        cli.main(["portal", "check", "--from-env", "--env-file", ".env"])
+    assert error.value.code == 2
+    assert fake_portal == []
+    capsys.readouterr()
+
+
 def test_interactive_mode_uses_hidden_prompts(monkeypatch, fake_portal, capsys):
+    # Variáveis existentes não mudam a origem sem --from-env.
+    monkeypatch.setenv("UERJ_MATRICULA", "999999999999")
+    monkeypatch.setenv("UERJ_SENHA", "another-password")
     monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
     values = iter(["000000000000", PASSWORD])
     prompts = []

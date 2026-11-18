@@ -26,7 +26,7 @@ renovação de sessão expirada ou operação contínua.
 | Campos enviados | `_token`, `requisicao`, `matricula`, `disciplinas[0]` | Nomes verificados; valores privados não reproduzidos |
 | Identificador da disciplina | Argumento numérico de `consultarDisciplina(output, id)` no link da lista | Correspondência verificada com `disciplinas[0]` e em nova navegação real |
 | Lista de disciplinas | 76 códigos e nomes no currículo da conta da captura; 53 com oferta indicada | Parser e fixture sanitizada; não representa o catálogo completo da UERJ |
-| Sessão | Cookie `PHPSESSID`, matrícula e campos opacos no POST | Uso verificado; login, renovação e expiração pendentes |
+| Sessão | Cookie `PHPSESSID`, matrícula e campos opacos no POST | Login completo confirmado pelo usuário em 18/11; renovação e expiração reais pendentes |
 | HTML real | Quatro turmas, duas tabelas por turma, categorias UERJ e Vestibular | Parser testado com resposta real e fixture sanitizada |
 | Semântica SID/SAID e calendário | Disponibilidade utilizável não comprovada | Pendente |
 | Limites e condições de consulta | Frequência permitida desconhecida | Pendente |
@@ -164,7 +164,10 @@ suporta o seguinte contrato exclusivamente para iniciar e testar a implementaç�
 
 O contrato `PortalClient` possui agora um adaptador HTTP baseado na lista observada,
 mas depende de sessão autorizada fornecida pelo chamador. O protótipo de login e
-recuperação limitada foi adicionado em 18/11 e aguarda teste com credenciais reais.
+recuperação limitada foi adicionado em 18/11. No mesmo dia o usuário executou
+`portal check --discipline-code IME01-06766` e confirmou login (`ready`), 76 disciplinas,
+53 com turmas, quatro turmas e oito observações. Esse aceite valida o fluxo de login
+na execução informada, sem concluir o aceite de expiração ou renovação.
 Os testes reais de consulta já realizados usam dados locais fora do
 repositório. A identificação específica de login expirado ainda precisa ser validada;
 a rejeição genérica de resposta incompatível não substitui essa descoberta.
@@ -178,7 +181,8 @@ a rejeição genérica de resposta incompatível não substitui essa descoberta.
 - [x] Parser adaptado e testado contra HTML real sanitizado.
 - [x] Origem dos identificadores e campos do formulário da lista verificada.
 - [x] Fluxo lista → turmas repetido com campos obtidos da resposta atualizada.
-- [ ] Autenticação e renovação/expiração de sessão documentadas.
+- [x] Login completo confirmado pelo usuário no portal real.
+- [ ] Renovação/expiração de sessão validadas no portal real.
 - [ ] Regras de inscrição e limites de consulta esclarecidos.
 
 O aceite mínimo de identificar a consulta e extrair linhas reais foi atingido. A

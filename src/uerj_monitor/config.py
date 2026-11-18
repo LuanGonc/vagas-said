@@ -46,6 +46,7 @@ class PortalSettings:
     enabled: bool = False
     env_file: Path | None = None
     recover_once: bool = False
+    from_env: bool = False
 
 
 @dataclass(frozen=True)
@@ -134,13 +135,22 @@ def load_config(path: Path, *, require_watches: bool = True) -> MonitorConfig:
         enabled=enabled,
         env_file=(root / _string(telegram.get("env_file", ".env"))).resolve(),
     )
-    portal = _keys(raw.get("portal", {}), {"enabled", "env_file", "recover_once"})
-    if any(type(portal.get(key, False)) is not bool for key in ("enabled", "recover_once")):
-        raise ConfigError("portal.enabled e portal.recover_once devem ser true ou false.")
+    portal = _keys(raw.get("portal", {}), {"enabled", "env_file", "recover_once", "from_env"})
+    if any(
+        type(portal.get(key, False)) is not bool for key in ("enabled", "recover_once", "from_env")
+    ):
+        raise ConfigError(
+            "portal.enabled, portal.recover_once e portal.from_env devem ser booleanos."
+        )
+    if portal.get("from_env", False) and "env_file" in portal:
+        raise ConfigError(
+            "Escolha portal.from_env ou portal.env_file, sem combinar as duas fontes."
+        )
     portal_settings = PortalSettings(
         enabled=portal.get("enabled", False),
         env_file=(root / _string(portal["env_file"])).resolve() if "env_file" in portal else None,
         recover_once=portal.get("recover_once", False),
+        from_env=portal.get("from_env", False),
     )
     sources: dict[str, Path] = {}
     discipline_names: dict[str, str] = {}

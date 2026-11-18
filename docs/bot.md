@@ -3,8 +3,8 @@
 O bot permite autorização, busca, seleção e gerenciamento de assinaturas em dois modos:
 demonstração local e catálogo real com uma conta UERJ central do responsável. Cada
 convidado autorizado tem sua lista de até dez turmas e não informa login UERJ.
-O modo central foi testado com respostas simuladas; o primeiro login completo com
-senha real ainda precisa ser validado pelo responsável.
+O usuário confirmou o login completo e a consulta real em 18/11/2026. O fluxo do bot
+está testado com respostas simuladas; ainda falta validar sua operação no Telegram real.
 
 ## Experimentar sem Telegram
 
@@ -70,7 +70,7 @@ Copy-Item config.bot.central.example.toml config.local.central.toml
 .\.venv\Scripts\python.exe -m uerj_monitor bot --config config.local.central.toml
 ```
 
-Só você digita matrícula e senha, com entrada oculta, ao iniciar o processo. A sessão
+Por padrão, só você digita matrícula e senha, com entrada oculta, ao iniciar. A sessão
 fica em memória até encerrar. Os convidados usam somente o Telegram; você os libera
 com `/autorizar ID`. A busca mostra as disciplinas com turmas na lista da sua conta.
 As consultas do portal são sequenciais, usando a mesma sessão do responsável.
@@ -79,6 +79,21 @@ Opcionalmente, preencha `UERJ_MATRICULA` e `UERJ_SENHA` no `.env` local e descom
 `env_file = ".env"` dentro de `[portal]` na configuração central. Isso autoriza a leitura
 explícita das credenciais desse arquivo ao iniciar, dispensando a digitação no terminal.
 Sem essa opção, o bot não lê essas credenciais do arquivo. Não envie senhas pelo Telegram.
+
+Para usar variáveis de ambiente, configure no mesmo terminal `UERJ_MATRICULA` e
+`UERJ_SENHA`, conforme [login-local.md](login-local.md#variáveis-de-ambiente), e use:
+
+```toml
+[portal]
+enabled = true
+from_env = true
+recover_once = true
+```
+
+Remova `env_file` da seção `[portal]` se estiver presente. O bot lê o ambiente sem
+pedir as credenciais no terminal. A seção `[telegram]` pode continuar com seu próprio
+`env_file`, ou usar `BOT_TOKEN` do ambiente. As fontes de credenciais UERJ são explícitas
+e não são combinadas; a falta de variável gera erro antes do login.
 
 O exemplo central permite **uma** renovação automática por execução, apenas quando a
 tela de login reaparece. Credenciais rejeitadas não são repetidas. Uma segunda expiração
@@ -138,6 +153,6 @@ verificação. Sem `--once`, usa polling Telegram, intervalo de monitoramento e 
 Após o limite de ciclos consecutivos com falhas (cinco por padrão), o bot encerra com
 código 2. Confira a conexão e a sessão e reinicie para retomar.
 
-Faltam validar o login completo com senha real, a operação contínua e o recebimento
+Faltam validar a expiração e renovação reais, a operação contínua e o recebimento
 com os convidados. Os alertas atuais indicam mudanças numéricas observadas; a regra
 de vaga utilizável por fase e elegibilidade ainda precisa ser comprovada.

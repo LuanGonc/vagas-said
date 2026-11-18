@@ -95,6 +95,7 @@ def test_central_bot_config_discovers_catalog_without_local_sources(tmp_path):
     config = load_config(example, require_watches=False)
     assert config.portal.enabled is True
     assert config.portal.env_file is None
+    assert config.portal.from_env is False
     assert config.portal.recover_once is True
     assert config.sources == {}
     assert config.watches == ()
@@ -106,7 +107,15 @@ def test_central_bot_config_discovers_catalog_without_local_sources(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "portal", ['enabled = "sim"', "enabled = 1", 'recover_once = "sim"', 'env_file = ""']
+    "portal",
+    [
+        'enabled = "sim"',
+        "enabled = 1",
+        'recover_once = "sim"',
+        'env_file = ""',
+        'from_env = "sim"',
+        'from_env = true\nenv_file = ".env"',
+    ],
 )
 def test_central_options_are_strict(tmp_path, portal):
     content = EXAMPLE.read_text(encoding="utf-8") + f"\n[portal]\n{portal}\n"

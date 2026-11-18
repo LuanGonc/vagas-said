@@ -7,8 +7,8 @@ O teste de login local está disponível:
 ```
 
 Ele pede matrícula e senha com entrada oculta e valida o catálogo antes de confirmar
-autenticação. A entrada pública foi verificada; o primeiro login com credenciais reais
-ainda precisa ser executado localmente pelo usuário. Veja [login-local.md](docs/login-local.md)
+autenticação. O usuário confirmou login e consulta reais em 18/11/2026: 76 disciplinas,
+53 com turmas e quatro turmas da disciplina consultada. Veja [login-local.md](docs/login-local.md)
 para detalhes sobre sessão, recuperação limitada e o que já foi validado.
 
 O produto será um **bot Telegram para pessoas autorizadas**, com busca de disciplinas,
@@ -35,11 +35,13 @@ Copy-Item config.bot.central.example.toml config.local.central.toml
 .\.venv\Scripts\python.exe -m uerj_monitor bot --config config.local.central.toml
 ```
 
-Somente o responsável digita suas credenciais no terminal ao iniciar. O modo central
+O responsável fornece suas credenciais no terminal, em arquivo local explícito ou
+por variáveis de ambiente (`[portal] from_env = true`). Veja as opções no guia de login.
+O modo central
 consulta cada disciplina uma vez por ciclo para todos os assinantes, preservando
 estados e alertas individuais. A integração está testada com transportes simulados.
-O fluxo lista → turmas já foi consultado no portal com sessão existente, mas o login
-completo por senha e a operação contínua real ainda precisam ser validados localmente.
+O login completo por senha e o fluxo lista → turmas foram confirmados no portal real.
+A operação contínua, a expiração e a renovação ainda precisam de validação real.
 Os alertas indicam mudanças observadas; a regra de vaga utilizável continua pendente.
 Os comandos de arquivo/CHAT_ID abaixo continuam como ferramentas de desenvolvimento.
 

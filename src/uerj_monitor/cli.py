@@ -61,8 +61,12 @@ def main(argv: list[str] | None = None) -> int:
     check = portal_commands.add_parser(
         "check", help="Autenticar e validar acesso ao catálogo real."
     )
-    check.add_argument(
+    credential_source = check.add_mutually_exclusive_group()
+    credential_source.add_argument(
         "--env-file", type=Path, help="Ler credenciais de um arquivo local explícito."
+    )
+    credential_source.add_argument(
+        "--from-env", action="store_true", help="Ler UERJ_MATRICULA e UERJ_SENHA do ambiente."
     )
     check.add_argument("--discipline-code", help="Consultar também as turmas desta disciplina.")
     check.add_argument(
@@ -243,7 +247,9 @@ def _bot_command(args: argparse.Namespace) -> int:
                 if config.portal.enabled:
                     portal = stack.enter_context(
                         AuthenticatedPortalSession(
-                            _read_portal_credentials(config.portal.env_file),
+                            _read_portal_credentials(
+                                config.portal.env_file, from_env=config.portal.from_env
+                            ),
                             recover_once=config.portal.recover_once,
                         )
                     )
@@ -329,12 +335,14 @@ def _bot_command(args: argparse.Namespace) -> int:
         return 1
 
 
-def _read_portal_credentials(env_file: Path | None) -> PortalCredentials:
+def _read_portal_credentials(env_file: Path | None, *, from_env: bool = False) -> PortalCredentials:
+    if from_env:
+        return load_portal_credentials()
     if env_file is not None:
         return load_portal_credentials(env_file)
     if not sys.stdin.isatty():
         raise PortalCredentialError(
-            "Execute em um terminal interativo ou informe um arquivo local de credenciais."
+            "Execute em um terminal interativo ou selecione credenciais de arquivo ou ambiente."
         )
     with warnings.catch_warnings():
         warnings.simplefilter("error", getpass.GetPassWarning)
@@ -345,7 +353,7 @@ def _read_portal_credentials(env_file: Path | None) -> PortalCredentials:
 
 def _portal_command(args: argparse.Namespace) -> int:
     try:
-        credentials = _read_portal_credentials(args.env_file)
+        credentials = _read_portal_credentials(args.env_file, from_env=args.from_env)
         with AuthenticatedPortalSession(credentials, recover_once=args.recover_once) as session:
             session.login()
             disciplines = session.disciplines

@@ -19,9 +19,12 @@ admin_user_ids = []
 
 [portal]
 enabled = true
-# Sem env_file, só o responsável digita matrícula/senha no terminal ao iniciar.
+# Sem env_file nem from_env, o responsável digita as credenciais no terminal.
 # Para leitura explícita de UERJ_MATRICULA e UERJ_SENHA do arquivo local:
 # env_file = ".env"
+# Alternativa: ler UERJ_MATRICULA e UERJ_SENHA das variáveis de ambiente.
+# Não combine from_env = true com env_file.
+# from_env = true
 # Permite uma renovação automática por execução, somente após expiração reconhecida.
 recover_once = true
 

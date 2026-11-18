@@ -1,6 +1,7 @@
 """Sessão UERJ local e isolada, com recuperação explícita e limitada."""
 
 import logging
+import os
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
@@ -60,7 +61,16 @@ class PortalCredentials:
             raise PortalCredentialError("Preencha a senha localmente.")
 
 
-def load_portal_credentials(path: Path) -> PortalCredentials:
+def load_portal_credentials(path: Path | None = None) -> PortalCredentials:
+    """Lê uma fonte explícita: arquivo fornecido ou ambiente do processo."""
+    if path is None:
+        registration = os.environ.get("UERJ_MATRICULA", "").strip()
+        password = os.environ.get("UERJ_SENHA", "")
+        if not registration or not password:
+            raise PortalCredentialError(
+                "Defina UERJ_MATRICULA e UERJ_SENHA no ambiente do processo."
+            )
+        return PortalCredentials(registration, password)
     if not path.is_file():
         raise PortalCredentialError("Informe um arquivo local de credenciais existente.")
     try:

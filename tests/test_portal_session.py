@@ -196,12 +196,28 @@ def test_expiration_preserves_monitor_baseline_and_emits_no_vacancy_alert():
         assert store.list_events() == []
 
 
-def test_local_env_file_is_explicit_and_password_whitespace_is_preserved(tmp_path):
+def test_local_env_file_is_explicit_and_password_whitespace_is_preserved(tmp_path, monkeypatch):
+    monkeypatch.setenv("UERJ_MATRICULA", "999999999999")
+    monkeypatch.setenv("UERJ_SENHA", "other-environment-password")
     path = tmp_path / ".env"
     path.write_text('UERJ_MATRICULA=000000000000\nUERJ_SENHA=" secret "\n', encoding="utf-8-sig")
     credentials = load_portal_credentials(path)
     assert credentials.password == " secret "
     assert credentials.registration == "000000000000"
+
+
+def test_process_environment_preserves_literal_password_and_does_not_change_environment(
+    monkeypatch,
+):
+    monkeypatch.setenv("UERJ_MATRICULA", " 000000000000 ")
+    monkeypatch.setenv("UERJ_SENHA", " secret-${LITERAL} ")
+    credentials = load_portal_credentials()
+    assert credentials.registration == "000000000000"
+    assert credentials.password == " secret-${LITERAL} "
+    import os
+
+    assert os.environ["UERJ_MATRICULA"] == " 000000000000 "
+    assert os.environ["UERJ_SENHA"] == credentials.password
 
 
 def test_sessions_for_two_accounts_do_not_share_credentials_or_cookie_lifecycle():
@@ -291,17 +307,23 @@ def test_central_shared_poll_preserves_independent_states_destinations_and_failu
         assert server.logins == 1
 
 
-@pytest.mark.parametrize("use_env_file", [True, False])
+@pytest.mark.parametrize("credential_source", ["file", "environment", "prompt"])
 def test_central_bot_cli_uses_only_owner_credentials_and_closes_resources(
-    tmp_path, monkeypatch, capsys, use_env_file
+    tmp_path, monkeypatch, capsys, credential_source
 ):
     token = "123456789:synthetic_test_token"
     monkeypatch.setenv("BOT_TOKEN", token)
+    monkeypatch.setenv("UERJ_MATRICULA", CREDENTIALS.registration)
+    monkeypatch.setenv("UERJ_SENHA", CREDENTIALS.password)
+    source_config = {
+        "file": 'env_file = ".env"\n',
+        "environment": "from_env = true\n",
+        "prompt": "",
+    }[credential_source]
     config = tmp_path / "config.toml"
     config.write_text(
         '[monitor]\ndatabase = "bot.sqlite3"\n[bot]\nadmin_user_ids = [1]\n'
-        "[portal]\nenabled = true\nrecover_once = true\n"
-        + ('env_file = ".env"\n' if use_env_file else ""),
+        "[portal]\nenabled = true\nrecover_once = true\n" + source_config,
         encoding="utf-8",
     )
     (tmp_path / ".env").write_text(
@@ -359,7 +381,7 @@ def test_central_bot_cli_uses_only_owner_credentials_and_closes_resources(
     monkeypatch.setattr(cli, "AuthenticatedPortalSession", portal_factory)
     monkeypatch.setattr(cli, "TelegramClient", telegram_factory)
     assert cli.main(["bot", "--config", str(config), "--once"]) == 0
-    assert len(prompts) == (0 if use_env_file else 2)
+    assert len(prompts) == (2 if credential_source == "prompt" else 0)
     assert all("oculta" in prompt for prompt in prompts)
     assert len(portals) == server.logins == 1
     assert portals[0].state == SessionState.CLOSED
