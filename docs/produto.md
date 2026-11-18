@@ -39,7 +39,8 @@ Implementação atual:
 - O monitor central consulta cada disciplina uma vez por ciclo para todos os assinantes,
   preservando estados e entregas individuais. O cache termina ao concluir o ciclo.
 - As credenciais do responsável vêm de entrada oculta, arquivo local explícito ou
-  variáveis de ambiente com `from_env = true`. As fontes não se misturam. Senha e
+  variáveis de ambiente com `from_env = true`. A preferência atual é preencher o `.env`
+  na raiz; a configuração central já usa esse arquivo. As fontes não se misturam. Senha e
   cookies não entram no banco, no Telegram ou no Git.
 - O usuário confirmou `portal check` no portal real: estado `ready`, 76 disciplinas,
   53 com turmas e turmas `1` a `4` da disciplina consultada (oito observações).

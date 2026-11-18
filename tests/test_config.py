@@ -94,13 +94,13 @@ def test_central_bot_config_discovers_catalog_without_local_sources(tmp_path):
     example = EXAMPLE.parent / "config.bot.central.example.toml"
     config = load_config(example, require_watches=False)
     assert config.portal.enabled is True
-    assert config.portal.env_file is None
+    assert config.portal.env_file == EXAMPLE.parent / ".env"
     assert config.portal.from_env is False
     assert config.portal.recover_once is True
     assert config.sources == {}
     assert config.watches == ()
     content = example.read_text(encoding="utf-8").replace(
-        '# env_file = ".env"', 'env_file = "private/.env"'
+        'env_file = ".env"', 'env_file = "private/.env"'
     )
     config = load_config(write_config(tmp_path, content), require_watches=False)
     assert config.portal.env_file == tmp_path / "private" / ".env"

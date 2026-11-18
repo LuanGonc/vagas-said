@@ -31,14 +31,14 @@ Para ligar ao catálogo UERJ, após validar o login local, use:
 
 ```powershell
 Copy-Item config.bot.central.example.toml config.local.central.toml
+# Preencha BOT_TOKEN, UERJ_MATRICULA e UERJ_SENHA no .env da raiz.
 # Preencha admin_user_ids na cópia com seu ID Telegram.
 .\.venv\Scripts\python.exe -m uerj_monitor bot --config config.local.central.toml
 ```
 
-O responsável fornece suas credenciais no terminal, em arquivo local explícito ou
-por variáveis de ambiente (`[portal] from_env = true`). Veja as opções no guia de login.
-O modo central
-consulta cada disciplina uma vez por ciclo para todos os assinantes, preservando
+O exemplo central já lê as credenciais do `.env` local. Use `.env.example` como modelo;
+o arquivo preenchido é ignorado pelo Git. Não é necessário configurar variáveis no terminal.
+O modo central consulta cada disciplina uma vez por ciclo para todos os assinantes, preservando
 estados e alertas individuais. A integração está testada com transportes simulados.
 O login completo por senha e o fluxo lista → turmas foram confirmados no portal real.
 A operação contínua, a expiração e a renovação ainda precisam de validação real.

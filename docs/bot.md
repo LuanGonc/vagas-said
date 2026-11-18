@@ -50,10 +50,19 @@ Não execute duas instâncias consumidoras de `getUpdates` para o mesmo bot.
 
 Depois de configurar `BOT_TOKEN` e obter seu ID Telegram pelos passos anteriores:
 
-1. Valide o login local, digitando sua matrícula e senha no terminal:
+1. Crie `.env` na raiz a partir de `.env.example` (preserve seu arquivo se já existir)
+   e preencha os três campos. Escreva matrícula e senha entre as aspas:
+
+```dotenv
+BOT_TOKEN=seu_token_do_bot
+UERJ_MATRICULA='sua_matricula'
+UERJ_SENHA='sua_senha'
+```
+
+   O arquivo `.env` é local e ignorado pelo Git. Para validar o acesso:
 
 ```powershell
-.\.venv\Scripts\python.exe -m uerj_monitor portal check --discipline-code IME01-06766
+.\.venv\Scripts\python.exe -m uerj_monitor portal check --env-file .env --discipline-code IME01-06766
 ```
 
 2. Copie a configuração central:
@@ -70,30 +79,14 @@ Copy-Item config.bot.central.example.toml config.local.central.toml
 .\.venv\Scripts\python.exe -m uerj_monitor bot --config config.local.central.toml
 ```
 
-Por padrão, só você digita matrícula e senha, com entrada oculta, ao iniciar. A sessão
-fica em memória até encerrar. Os convidados usam somente o Telegram; você os libera
+O exemplo central já lê matrícula e senha do `.env` ao iniciar, sem digitação no terminal.
+A sessão fica em memória até encerrar. Os convidados usam somente o Telegram; você os libera
 com `/autorizar ID`. A busca mostra as disciplinas com turmas na lista da sua conta.
 As consultas do portal são sequenciais, usando a mesma sessão do responsável.
 
-Opcionalmente, preencha `UERJ_MATRICULA` e `UERJ_SENHA` no `.env` local e descomente
-`env_file = ".env"` dentro de `[portal]` na configuração central. Isso autoriza a leitura
-explícita das credenciais desse arquivo ao iniciar, dispensando a digitação no terminal.
-Sem essa opção, o bot não lê essas credenciais do arquivo. Não envie senhas pelo Telegram.
-
-Para usar variáveis de ambiente, configure no mesmo terminal `UERJ_MATRICULA` e
-`UERJ_SENHA`, conforme [login-local.md](login-local.md#variáveis-de-ambiente), e use:
-
-```toml
-[portal]
-enabled = true
-from_env = true
-recover_once = true
-```
-
-Remova `env_file` da seção `[portal]` se estiver presente. O bot lê o ambiente sem
-pedir as credenciais no terminal. A seção `[telegram]` pode continuar com seu próprio
-`env_file`, ou usar `BOT_TOKEN` do ambiente. As fontes de credenciais UERJ são explícitas
-e não são combinadas; a falta de variável gera erro antes do login.
+A configuração usa `[portal] env_file = ".env"`. Não é necessário definir variáveis
+no PowerShell. Outras formas de fornecer credenciais continuam descritas em
+[login-local.md](login-local.md).
 
 O exemplo central permite **uma** renovação automática por execução, apenas quando a
 tela de login reaparece. Credenciais rejeitadas não são repetidas. Uma segunda expiração
