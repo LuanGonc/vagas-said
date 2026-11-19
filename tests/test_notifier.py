@@ -198,7 +198,7 @@ def test_message_reports_counts_without_claiming_an_available_seat(captured_at):
     )
     after = replace(before, numbers=replace(before.numbers, requested_total=3))
     text = format_event(StoredEvent(1, EventKind.NUMBERS_CHANGED, before, after))
-    assert "Demonstração local" in text
+    assert "Monitor de Vagas UERJ" in text
     assert "Solicitadas / Total: 18 → 3" in text
     assert "vaga disponível" not in text.lower()
     assert "Contagens não confirmam matrícula" in text

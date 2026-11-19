@@ -12,7 +12,7 @@ import httpx
 from dotenv import dotenv_values
 
 from uerj_monitor.config import ConfigError
-from uerj_monitor.storage import StoredEvent
+from uerj_monitor.storage import EventKind, StoredEvent
 
 
 @dataclass(frozen=True)
@@ -232,6 +232,30 @@ def _label(value: str) -> str:
 def format_event(event: StoredEvent) -> str:
     observation = event.current
     watch = observation.watch
+    if event.kind == EventKind.CLASS_DISCOVERED:
+        lines = [
+            "Monitor de Vagas UERJ — Nova turma encontrada",
+            f"Disciplina: {_label(watch.discipline_code)}",
+        ]
+        if watch.discipline_name:
+            lines.append(f"Nome: {_label(watch.discipline_name)}")
+        lines.extend(
+            [
+                f"Nova turma: {_label(watch.class_number)}",
+                "Encontrada em: "
+                + observation.captured_at.astimezone(ZoneInfo("America/Sao_Paulo")).strftime(
+                    "%d/%m/%Y %H:%M:%S %z"
+                )
+                + " (Brasília)",
+                "Esta turma não foi adicionada à sua lista.",
+                f"Use /turmas {_label(watch.discipline_code)} para escolher se quer acompanhá-la.",
+                "O aparecimento da turma não confirma vagas disponíveis. Confira no Aluno Online:",
+                "https://www.alunoonline.uerj.br/requisicaoaluno/",
+            ]
+        )
+        return "\n".join(lines)
+    if event.previous is None:
+        raise ValueError("Um alerta de alteração exige uma observação anterior.")
     labels = (
         "Oferecidas (atualizadas)",
         "Ocupadas",
@@ -240,7 +264,7 @@ def format_event(event: StoredEvent) -> str:
         "Solicitadas / Preferenciais",
     )
     lines = [
-        "Demonstração local — Monitor de Vagas UERJ",
+        "Monitor de Vagas UERJ",
         "Alteração nas contagens observada.",
         f"Disciplina: {_label(watch.discipline_code)}",
     ]

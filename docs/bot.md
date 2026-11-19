@@ -111,6 +111,34 @@ Escolher “Monitorar turma 01” adiciona essa turma à lista pessoal. Repetir 
 não duplica a assinatura. O limite é transacional: duas seleções concorrentes não
 conseguem ultrapassar dez. Depois de receber um alerta, a turma continua ativa.
 
+## Aviso de novas turmas
+
+Quando a pessoa acompanha pelo menos uma turma de uma disciplina, o bot também
+acompanha o aparecimento de outras turmas UERJ dessa disciplina. Não é preciso ativar
+um comando adicional. Exemplo: quem acompanha Cálculo II / turma 1 recebe um aviso
+se uma turma 5 aparecer na consulta, mesmo sem mudança nas contagens da turma 1.
+
+O aviso identifica código, nome e número da turma e orienta usar `/turmas CODIGO`
+para escolhê-la. **A turma nova não é cadastrada automaticamente** e o aviso não
+consome nenhuma das dez posições. Ele também funciona para quem já está no limite.
+O aparecimento de uma turma não comprova vaga disponível nem possibilidade de inscrição.
+
+A primeira consulta válida registra todas as turmas conhecidas sem enviar avisos.
+Depois disso, cada número novo gera um evento `class_discovered` por pessoa/disciplina,
+mesmo que a pessoa acompanhe várias turmas da mesma matéria. O estado e a fila são
+persistidos juntos, preservando avisos pendentes e a deduplicação após reinícios.
+Uma turma que desaparece e reaparece com o mesmo número não gera outro aviso.
+Falhas de consulta ou ausência da disciplina não apagam as turmas conhecidas.
+
+Remover a última turma acompanhada da matéria ou revogar o acesso encerra esses avisos,
+cancela as entregas ainda não iniciadas e limpa a baseline da disciplina. Se a pessoa
+voltar a acompanhá-la, a primeira consulta estabelece uma baseline nova. Mudanças de
+fase configurada também estabelecem baseline sem anunciar todas as turmas atuais.
+O recurso usa a consulta já feita pelo monitor; não acrescenta consultas ao portal.
+
+Para ativar após atualizar o código, pare o bot com `Ctrl+C` e inicie novamente com
+o comando habitual. O banco é atualizado automaticamente, mantendo as assinaturas.
+
 Os botões expiram após quinze minutos, são verificados por dono e sobrevivem a reinícios
 enquanto válidos. Os números das turmas não são inventados pelo bot. Uma turma que saiu
 da consulta não pode ser adicionada por um botão antigo. Atualmente a seleção oferece
@@ -133,7 +161,8 @@ O banco guarda IDs Telegram, permissões, assinaturas, ações temporárias e of
 além dos eventos e da fila. Não guarda histórico de conversas, nomes de usuário, token
 do bot ou senha UERJ. Botões de paginação podem guardar temporariamente o critério de
 busca. IDs e banco são locais e não devem ser versionados. A versão do esquema
-é v3 e preserva os dados anteriores na atualização.
+é v4 e preserva os dados anteriores na atualização. Os eventos de novas turmas têm
+`previous: null`, pois representam descoberta, sem inventar uma observação anterior.
 
 O offset é confirmado localmente antes de responder. Se uma resposta da conversa se
 perder, ela não é reenviada automaticamente: a pessoa pode usar `/minhas` ou repetir
@@ -147,5 +176,5 @@ Após o limite de ciclos consecutivos com falhas (cinco por padrão), o bot ence
 código 2. Confira a conexão e a sessão e reinicie para retomar.
 
 Faltam validar a expiração e renovação reais, a operação contínua e o recebimento
-com os convidados. Os alertas atuais indicam mudanças numéricas observadas; a regra
+com os convidados. Os alertas atuais indicam mudanças numéricas ou novas turmas observadas; a regra
 de vaga utilizável por fase e elegibilidade ainda precisa ser comprovada.

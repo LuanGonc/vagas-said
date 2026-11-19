@@ -25,7 +25,7 @@ from uerj_monitor.portal_session import (
     SessionState,
     load_portal_credentials,
 )
-from uerj_monitor.storage import SQLiteStore
+from uerj_monitor.storage import EventKind, SQLiteStore
 from uerj_monitor.subscriptions import SubscriptionRepository
 
 ROOT = Path(__file__).parent / "fixtures"
@@ -422,6 +422,34 @@ def test_central_cli_rejects_failed_login_before_telegram_or_demo_access(tmp_pat
     assert server.logins == 1
     assert cli.main(["bot-demo", "--config", str(config)]) == 1
     assert len(portals) == 1
+
+
+def test_central_discovery_uses_observed_html_without_extra_queries(captured_at):
+    server = PortalServer()
+    moment = captured_at
+    with session(server) as portal, SQLiteStore(":memory:") as store:
+        portal.login()
+        repo = SubscriptionRepository(store)
+        for user_id in (1, 2):
+            repo.grant(user_id, 1)
+            repo.subscribe(user_id, Watch("IME01-00000", "1"))
+        monitor = SubscriptionMonitor(
+            store,
+            CentralPortalCatalog(portal),
+            TelegramCredentials("123456789:synthetic_test_token"),
+            clock=lambda: moment,
+        )
+        assert monitor.poll_once().events == ()
+        server.classes_html = CLASSES.replace("<b>TURMA: </b> 4", "<b>TURMA: </b> 5")
+        before = len(server.requests)
+        moment += timedelta(minutes=1)
+        result = monitor.poll_once()
+        assert len(server.requests) - before == 2
+        assert result.failures == ()
+        assert len(result.events) == 2
+        assert all(event.kind == EventKind.CLASS_DISCOVERED for event in result.events)
+        assert all(event.current.watch.class_number == "5" for event in result.events)
+        assert len(repo.list_active()) == 2
 
 
 def test_central_bot_denies_uninvited_users_before_any_portal_query():

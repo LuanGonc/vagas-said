@@ -3,6 +3,7 @@
 import json
 import sqlite3
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
 
@@ -14,13 +15,14 @@ from uerj_monitor.serialization import observation_from_dict, observation_to_dic
 class EventKind(StrEnum):
     NUMBERS_CHANGED = "numbers_changed"
     AVAILABILITY_DETECTED = "availability_detected"
+    CLASS_DISCOVERED = "class_discovered"
 
 
 @dataclass(frozen=True)
 class StoredEvent:
     id: int
     kind: EventKind
-    previous: ClassObservation
+    previous: ClassObservation | None
     current: ClassObservation
     policy_id: str | None = None
 
@@ -29,7 +31,7 @@ class StoredEvent:
             "id": self.id,
             "kind": self.kind.value,
             "policy_id": self.policy_id,
-            "previous": observation_to_dict(self.previous),
+            "previous": observation_to_dict(self.previous) if self.previous is not None else None,
             "current": observation_to_dict(self.current),
         }
 
@@ -48,6 +50,16 @@ def _decode(payload: str) -> ClassObservation:
     return observation_from_dict(json.loads(payload))
 
 
+def _event_from_row(row: sqlite3.Row) -> StoredEvent:
+    return StoredEvent(
+        row["id"],
+        EventKind(row["kind"]),
+        None if row["previous"] == "null" else _decode(row["previous"]),
+        _decode(row["current"]),
+        row["policy_id"],
+    )
+
+
 def _state_key(watch: Watch, subscription_id: int | None) -> str:
     parts = list(watch_key(watch))
     return json.dumps(
@@ -64,7 +76,7 @@ class SQLiteStore:
         try:
             self.connection.execute("PRAGMA foreign_keys = ON")
             version = self.connection.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1, 2, 3):
+            if version not in (0, 1, 2, 3, 4):
                 raise ValueError("Versão de banco não suportada.")
             self.connection.executescript("""
                 CREATE TABLE IF NOT EXISTS states (
@@ -129,7 +141,20 @@ class SQLiteStore:
                     bot_id TEXT PRIMARY KEY,
                     next_offset INTEGER NOT NULL
                 );
-                PRAGMA user_version = 3;
+                CREATE TABLE IF NOT EXISTS discipline_class_states (
+                    user_id INTEGER NOT NULL REFERENCES bot_users(user_id),
+                    discipline_code TEXT NOT NULL,
+                    known_classes TEXT NOT NULL,
+                    captured_at TEXT NOT NULL,
+                    phase TEXT NOT NULL,
+                    PRIMARY KEY(user_id, discipline_code)
+                );
+                CREATE TABLE IF NOT EXISTS discipline_events (
+                    event_id INTEGER PRIMARY KEY REFERENCES events(id),
+                    user_id INTEGER NOT NULL REFERENCES bot_users(user_id),
+                    discipline_code TEXT NOT NULL
+                );
+                PRAGMA user_version = 4;
             """)
         except Exception:
             self.connection.close()
@@ -232,19 +257,80 @@ class SQLiteStore:
             )
         return RecordResult(change, event)
 
+    def record_classes(
+        self, user_id: int, observations: list[ClassObservation], *, delivery_destination: str
+    ) -> tuple[StoredEvent, ...]:
+        """Guarda turmas conhecidas e enfileira novidades por pessoa/disciplina atomicamente."""
+        classes = {
+            item.watch.class_number: item
+            for item in observations
+            if item.watch.vacancy_type == "UERJ"
+        }
+        if not classes:
+            return ()
+        current = next(iter(classes.values()))
+        code, captured_at, phase = (
+            current.watch.discipline_code,
+            current.captured_at,
+            current.source_phase,
+        )
+        if any(
+            (item.watch.discipline_code, item.captured_at, item.source_phase)
+            != (code, captured_at, phase)
+            for item in classes.values()
+        ):
+            raise ValueError("A lista de turmas precisa pertencer à mesma consulta.")
+        events = []
+        with self.connection:
+            self.connection.execute("BEGIN IMMEDIATE")
+            if not self.connection.execute(
+                """SELECT 1 FROM subscriptions s JOIN bot_access a ON a.user_id = s.user_id
+                   WHERE s.user_id = ? AND s.discipline_code = ? AND s.active = 1""",
+                (user_id, code),
+            ).fetchone():
+                return ()
+            row = self.connection.execute(
+                "SELECT * FROM discipline_class_states WHERE user_id = ? AND discipline_code = ?",
+                (user_id, code),
+            ).fetchone()
+            if row and captured_at <= datetime.fromisoformat(row["captured_at"]):
+                return ()
+            known = set(json.loads(row["known_classes"])) if row and row["phase"] == phase else None
+            if known is not None:
+                for number in sorted(classes.keys() - known):
+                    item = classes[number]
+                    cursor = self.connection.execute(
+                        "INSERT INTO events (kind, previous, current) VALUES (?, ?, ?)",
+                        (EventKind.CLASS_DISCOVERED.value, "null", _encode(item)),
+                    )
+                    event = StoredEvent(cursor.lastrowid, EventKind.CLASS_DISCOVERED, None, item)
+                    self.connection.execute(
+                        "INSERT INTO discipline_events VALUES (?, ?, ?)", (event.id, user_id, code)
+                    )
+                    self.connection.execute(
+                        "INSERT INTO deliveries (event_id, destination) VALUES (?, ?)",
+                        (event.id, delivery_destination),
+                    )
+                    events.append(event)
+            self.connection.execute(
+                """INSERT INTO discipline_class_states VALUES (?, ?, ?, ?, ?)
+                   ON CONFLICT(user_id, discipline_code) DO UPDATE SET
+                     known_classes = excluded.known_classes, captured_at = excluded.captured_at,
+                     phase = excluded.phase""",
+                (
+                    user_id,
+                    code,
+                    json.dumps(sorted(set(classes) | (known or set()))),
+                    captured_at.isoformat(),
+                    phase.value,
+                ),
+            )
+        return tuple(events)
+
     def list_events(self, limit: int = 100) -> list[StoredEvent]:
         if type(limit) is not int or not 1 <= limit <= 1000:
             raise ValueError("O limite de eventos deve estar entre 1 e 1000.")
         rows = self.connection.execute(
             "SELECT * FROM events ORDER BY id DESC LIMIT ?", (limit,)
         ).fetchall()
-        return [
-            StoredEvent(
-                row["id"],
-                EventKind(row["kind"]),
-                _decode(row["previous"]),
-                _decode(row["current"]),
-                row["policy_id"],
-            )
-            for row in rows
-        ]
+        return [_event_from_row(row) for row in rows]

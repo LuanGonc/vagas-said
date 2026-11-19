@@ -43,11 +43,14 @@ class SubscriptionMonitor:
             if observations is None:
                 failures.append(PollFailure(code, "source_error"))
                 continue
+            destination = replace(self.credentials, chat_id=str(user_id)).destination
+            events.extend(
+                self.store.record_classes(user_id, observations, delivery_destination=destination)
+            )
             by_key = {watch_key(item.watch): item for item in observations}
             if any(watch_key(sub.watch) not in by_key for sub in subscriptions):
                 failures.append(PollFailure(code, "missing_watch"))
                 continue
-            destination = replace(self.credentials, chat_id=str(user_id)).destination
             for sub in subscriptions:
                 result = self.store.record(
                     replace(by_key[watch_key(sub.watch)], watch=sub.watch),

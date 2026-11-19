@@ -1,4 +1,4 @@
-# Decisões do produto — atualização de 18/11/2026
+# Decisões do produto — atualização de 19/11/2026
 
 Em 18/11/2026 o usuário confirmou que o acesso pede matrícula e senha, sem etapa extra.
 O projeto é pessoal, para aproximadamente cinco conhecidos. O usuário escolheu uma
@@ -15,6 +15,9 @@ Decisões confirmadas pelo usuário:
 - Limite inicial de **10 turmas ativas no total por pessoa**, somando disciplinas.
 - Escolher uma turma já ativa não ocupa outra posição.
 - O monitoramento continua após o alerta, até a pessoa remover a turma.
+- Avisar quando aparecer uma nova turma em uma disciplina acompanhada.
+- A turma nova é apenas informada; a pessoa escolhe se quer cadastrá-la. O aviso não
+  ocupa posição no limite de dez turmas.
 - Remover uma turma libera uma posição. Reativá-la estabelece uma nova baseline.
 - Acesso somente para pessoas autorizadas pelo responsável.
 - Uma conta UERJ central; o catálogo fica limitado ao que o responsável consegue consultar.
@@ -38,6 +41,10 @@ Implementação atual:
   extrai as turmas da consulta real, sem cadastro manual de códigos ou identificadores.
 - O monitor central consulta cada disciplina uma vez por ciclo para todos os assinantes,
   preservando estados e entregas individuais. O cache termina ao concluir o ciclo.
+- A descoberta de turmas usa essa mesma captura. Guarda turmas conhecidas por pessoa
+  e disciplina, sem aviso inicial, sem repetir uma turma após reinício ou reaparecimento.
+  Fica ativa enquanto a pessoa acompanha ao menos uma turma da matéria. Remover a
+  última turma ou revogar acesso cancela seus avisos pendentes de descoberta.
 - As credenciais do responsável vêm de entrada oculta, arquivo local explícito ou
   variáveis de ambiente com `from_env = true`. A preferência atual é preencher o `.env`
   na raiz; a configuração central já usa esse arquivo. As fontes não se misturam. Senha e

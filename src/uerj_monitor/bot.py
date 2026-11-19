@@ -126,6 +126,8 @@ class BotService:
                 "/minhas — ver suas turmas\n"
                 "/parar — escolher uma turma para remover\n"
                 "O monitoramento continua após os alertas, até você remover a turma."
+                "\nTambém aviso quando encontrar uma nova turma nas disciplinas acompanhadas."
+                " As turmas novas só entram na sua lista se você escolher."
             )
         if command in {"/minhas", "/parar"}:
             if command == "/parar" and argument:

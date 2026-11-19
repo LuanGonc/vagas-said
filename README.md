@@ -14,6 +14,9 @@ para detalhes sobre sessão, recuperação limitada e o que já foi validado.
 O produto será um **bot Telegram para pessoas autorizadas**, com busca de disciplinas,
 seleção das turmas existentes e limite de **10 turmas ativas por pessoa**. As decisões
 confirmadas estão em [docs/produto.md](docs/produto.md).
+Também avisa quando aparece uma **nova turma nas disciplinas acompanhadas**. O aviso
+não cadastra a turma nem ocupa uma posição: a pessoa decide se quer acompanhá-la.
+As turmas já existentes na primeira consulta não geram avisos de descoberta.
 Para o uso pessoal com conhecidos, foi escolhido o modo de **conta UERJ central**:
 só o responsável fornece matrícula e senha localmente. Cada convidado usa sua conversa
 Telegram e acompanha suas próprias turmas no catálogo disponível para essa conta.

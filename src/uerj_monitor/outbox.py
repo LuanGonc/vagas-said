@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from uerj_monitor.notifier import TelegramClient, TelegramError, format_event
-from uerj_monitor.storage import EventKind, SQLiteStore, StoredEvent, _decode
+from uerj_monitor.storage import SQLiteStore, StoredEvent, _event_from_row
 
 
 @dataclass(frozen=True)
@@ -41,23 +41,22 @@ class Outbox:
                    """
             parameters = [destination, now]
             if subscription_user_id is not None:
-                query += """AND EXISTS (SELECT 1 FROM subscription_events se
+                query += """AND (EXISTS (SELECT 1 FROM subscription_events se
                              JOIN subscriptions s ON s.id = se.subscription_id
                              JOIN bot_access a ON a.user_id = s.user_id
-                             WHERE se.event_id = events.id AND s.user_id = ? AND s.active = 1) """
-                parameters.append(subscription_user_id)
+                             WHERE se.event_id = events.id AND s.user_id = ? AND s.active = 1)
+                           OR EXISTS (SELECT 1 FROM discipline_events de
+                             JOIN bot_access a ON a.user_id = de.user_id
+                             WHERE de.event_id = events.id AND de.user_id = ? AND EXISTS (
+                               SELECT 1 FROM subscriptions s WHERE s.user_id = de.user_id
+                               AND s.discipline_code = de.discipline_code AND s.active = 1))) """
+                parameters.extend((subscription_user_id, subscription_user_id))
             row = self.connection.execute(
                 query + "ORDER BY event_id LIMIT 1", parameters
             ).fetchone()
             if row is None:
                 return None
-            event = StoredEvent(
-                row["id"],
-                EventKind(row["kind"]),
-                _decode(row["previous"]),
-                _decode(row["current"]),
-                row["policy_id"],
-            )
+            event = _event_from_row(row)
             self.connection.execute(
                 """UPDATE deliveries SET status = 'sending', attempts = attempts + 1
                    WHERE event_id = ?""",

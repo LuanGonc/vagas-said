@@ -188,6 +188,6 @@ def test_version_one_migration_keeps_history_without_backfilling_old_events(tmp_
             PRAGMA user_version = 1;
         """)
     with SQLiteStore(path) as store:
-        assert store.connection.execute("PRAGMA user_version").fetchone()[0] == 3
+        assert store.connection.execute("PRAGMA user_version").fetchone()[0] == 4
         assert store.list_events()[0] == old_event
         assert Outbox(store).list_deliveries() == []

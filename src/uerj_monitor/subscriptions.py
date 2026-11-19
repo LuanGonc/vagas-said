@@ -57,6 +57,10 @@ class SubscriptionRepository:
                 "UPDATE subscriptions SET active = 0 WHERE user_id = ?", (user_id,)
             )
             self.connection.execute(
+                "DELETE FROM discipline_class_states WHERE user_id = ?", (user_id,)
+            )
+            self._cancel_discipline_events(user_id)
+            self.connection.execute(
                 """UPDATE deliveries SET status = 'cancelled' WHERE event_id IN (
                      SELECT se.event_id FROM subscription_events se
                      JOIN subscriptions s ON s.id = se.subscription_id WHERE s.user_id = ?)
@@ -127,6 +131,19 @@ class SubscriptionRepository:
             )
             if not cursor.rowcount:
                 return False
+            code = self.connection.execute(
+                "SELECT discipline_code FROM subscriptions WHERE id = ?", (subscription_id,)
+            ).fetchone()[0]
+            if not self.connection.execute(
+                """SELECT 1 FROM subscriptions WHERE user_id = ? AND discipline_code = ?
+                   AND active = 1""",
+                (user_id, code),
+            ).fetchone():
+                self.connection.execute(
+                    "DELETE FROM discipline_class_states WHERE user_id = ? AND discipline_code = ?",
+                    (user_id, code),
+                )
+                self._cancel_discipline_events(user_id, code)
             self.connection.execute(
                 """UPDATE deliveries SET status = 'cancelled' WHERE event_id IN
                    (SELECT event_id FROM subscription_events WHERE subscription_id = ?)
@@ -134,6 +151,15 @@ class SubscriptionRepository:
                 (subscription_id,),
             )
             return True
+
+    def _cancel_discipline_events(self, user_id: int, code: str | None = None) -> None:
+        sql = """UPDATE deliveries SET status = 'cancelled' WHERE event_id IN (
+                 SELECT event_id FROM discipline_events WHERE user_id = ?"""
+        parameters = [user_id]
+        if code is not None:
+            sql += " AND discipline_code = ?"
+            parameters.append(code)
+        self.connection.execute(sql + ") AND status NOT IN ('sent', 'sending')", parameters)
 
     def action(self, user_id: int, payload: dict, now: float) -> str:
         self.ensure_user(user_id)
